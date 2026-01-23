@@ -21,6 +21,7 @@ def make_decision(txn, user_stats, model, features, autoencoder=None):
         txn_count_10min=txn["txn_count_10min"],
         txn_count_1hour=txn["txn_count_1hour"],
         monthly_spending=user_stats["current_month_spending"],
+        is_new_beneficiary=txn.get("is_new_beneficiary", 0)
     )
 
     result["threshold"] = threshold

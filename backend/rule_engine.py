@@ -24,7 +24,8 @@ def check_rule_violation(
     transfer_type,
     txn_count_10min,
     txn_count_1hour,
-    monthly_spending
+    monthly_spending,
+    is_new_beneficiary=0
 ):
     reasons = []
     violated = False
@@ -49,6 +50,13 @@ def check_rule_violation(
         violated = True
         reasons.append(
             f"Monthly spending AED {projected:,.2f} exceeds limit AED {threshold:,.2f}"
+        )
+
+    # New beneficiary check
+    if is_new_beneficiary == 1:
+        violated = True
+        reasons.append(
+            f"New beneficiary detected - requires user approval for security"
         )
 
     return violated, reasons, threshold
