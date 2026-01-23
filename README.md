@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 🏦 Banking Anomaly Detection System
 
 A sophisticated **triple-layer fraud detection system** that combines business rules, machine learning, and deep learning to protect banking transactions from fraudulent activities.
@@ -242,3 +243,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 ⭐ **Star this repository if you found it helpful!** ⭐
+=======
+# transaction-checker
+This Banking Fraud Detection System uses a Stacking Ensemble.It learns a user's 6-month average spending (Behavioral Spending Analysis) to set Dynamic Thresholds. The goal is to detect high Deviation and trigger an Approval Notification for suspicious transactions. A real time Db connected project
+>>>>>>> 7466b91ab22946201eb7c2b07d6861a5d4498e57
