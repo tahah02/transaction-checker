@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import csv
+import os
 
 from backend.utils import get_feature_engineered_path, get_model_path, load_model
 from backend.hybrid_decision import make_decision
@@ -9,6 +11,16 @@ from backend.autoencoder import AutoencoderInference
 from backend.db_service import get_db_service
 
 db = get_db_service()
+
+def save_transaction_to_csv(cid, amount, t_type, status="Approved"):
+    file_name = 'data/transaction_history.csv'
+    file_exists = os.path.isfile(file_name)
+    
+    with open(file_name, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        if not file_exists:
+            writer.writerow(['Txn_id', 'CustomerID', 'Amount', 'Type', 'Status', 'Timestamp'])
+        writer.writerow([len(pd.read_csv(file_name)) if file_exists else 1, cid, amount, t_type, status, datetime.now()])
 
 st.set_page_config(page_title="Banking Fraud Detection", layout="wide")
 
@@ -314,12 +326,14 @@ def dashboard(df, model, features, scaler=None, autoencoder=None):
                 if st.button("Approve (Force)", type="primary"):
                     record_transaction(cid, result_account)
                     add_monthly_spending(cid, result_account, r['amount'])
+                    save_transaction_to_csv(cid, r['amount'], t_type, "Force Approved")
                     st.success("Approved & Saved!")
                     st.session_state.result = None
                     st.rerun()
                     
             with c2:
                 if st.button("Reject"):
+                    save_transaction_to_csv(cid, r['amount'], t_type, "Rejected")
                     st.error("Rejected!")
                     st.session_state.result = None
                     st.rerun()

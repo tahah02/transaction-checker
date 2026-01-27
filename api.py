@@ -70,7 +70,25 @@ def analyze_transaction(request: TransactionRequest):
     start_time = datetime.now()
     
     try:
-        user_stats = db.get_all_user_stats(request.customer_id, request.from_account_no)
+        db_stats = db.get_all_user_stats(request.customer_id, request.from_account_no)
+        user_stats = {
+            "user_avg_amount": db_stats.get("user_avg_amount", 5000.0),
+            "user_std_amount": db_stats.get("user_std_amount", 2000.0),
+            "user_max_amount": db_stats.get("user_max_amount", 15000.0),
+            "user_txn_frequency": db_stats.get("user_txn_frequency", 0),
+            "user_international_ratio": db_stats.get("user_international_ratio", 0.0),
+            "current_month_spending": db_stats.get("current_month_spending", 0.0),
+            "user_weekly_total": db_stats.get("user_weekly_total", 0.0),
+            "user_weekly_txn_count": db_stats.get("user_weekly_txn_count", 0),
+            "user_weekly_avg_amount": db_stats.get("user_weekly_avg_amount", 0.0),
+            "user_weekly_deviation": db_stats.get("user_weekly_deviation", 0.0),
+            "user_monthly_txn_count": db_stats.get("user_monthly_txn_count", 0),
+            "user_monthly_avg_amount": db_stats.get("user_monthly_avg_amount", 0.0),
+            "user_monthly_deviation": db_stats.get("user_monthly_deviation", 0.0),
+            "txn_count_10min": db_stats.get("txn_count_10min", 0),
+            "txn_count_1hour": db_stats.get("txn_count_1hour", 0),
+            "time_since_last_txn": db_stats.get("time_since_last_txn", 3600.0)
+        }
     except:
         user_stats = {
             "user_avg_amount": 5000.0,
@@ -83,6 +101,9 @@ def analyze_transaction(request: TransactionRequest):
             "user_weekly_txn_count": 0,
             "user_weekly_avg_amount": 0.0,
             "user_weekly_deviation": 0.0,
+            "user_monthly_txn_count": 0,
+            "user_monthly_avg_amount": 0.0,
+            "user_monthly_deviation": 0.0,
             "txn_count_10min": 0,
             "txn_count_1hour": 0,
             "time_since_last_txn": 3600.0
