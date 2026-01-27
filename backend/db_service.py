@@ -179,6 +179,167 @@ class DatabaseService:
             logger.error(f"Error checking beneficiary: {e}")
             return 1
     
+    def get_weekly_stats(self, customer_id: str, account_no: str) -> Dict[str, Any]:
+        try:
+            query = """
+                SELECT 
+                    SUM(AmountInAed) as weekly_total,
+                    COUNT(*) as weekly_txn_count,
+                    AVG(AmountInAed) as weekly_avg_amount,
+                    STDEV(AmountInAed) as weekly_std
+                FROM TransactionHistoryLogs 
+                WHERE CustomerId = ? AND FromAccountNo = ? 
+                AND CreateDate >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))
+            """
+            df = self.execute_query(query, [customer_id, account_no])
+            
+            weekly_total = float(df['weekly_total'].iloc[0] or 0.0)
+            weekly_txn_count = int(df['weekly_txn_count'].iloc[0] or 0)
+            weekly_avg = float(df['weekly_avg_amount'].iloc[0] or 0.0)
+            weekly_std = float(df['weekly_std'].iloc[0] or 0.0)
+            
+            weekly_deviation = 0.0
+            if weekly_avg > 0:
+                query_deviation = """
+                    SELECT AVG(ABS(AmountInAed - ?)) as avg_deviation
+                    FROM TransactionHistoryLogs 
+                    WHERE CustomerId = ? AND FromAccountNo = ? 
+                    AND CreateDate >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))
+                """
+                df_dev = self.execute_query(query_deviation, [weekly_avg, customer_id, account_no])
+                weekly_deviation = float(df_dev['avg_deviation'].iloc[0] or 0.0)
+            
+            return {
+                "user_weekly_total": weekly_total,
+                "user_weekly_txn_count": weekly_txn_count,
+                "user_weekly_avg_amount": weekly_avg,
+                "user_weekly_deviation": weekly_deviation
+            }
+        except Exception as e:
+            logger.error(f"Error getting weekly stats: {e}")
+            return {
+                "user_weekly_total": 0.0,
+                "user_weekly_txn_count": 0,
+                "user_weekly_avg_amount": 0.0,
+                "user_weekly_deviation": 0.0
+            }
+    
+    def get_monthly_stats(self, customer_id: str, account_no: str) -> Dict[str, Any]:
+        try:
+            query = """
+                SELECT 
+                    SUM(AmountInAed) as monthly_total,
+                    COUNT(*) as monthly_txn_count,
+                    AVG(AmountInAed) as monthly_avg_amount
+                FROM TransactionHistoryLogs 
+                WHERE CustomerId = ? AND FromAccountNo = ? 
+                AND MONTH(CreateDate) = MONTH(GETDATE()) 
+                AND YEAR(CreateDate) = YEAR(GETDATE())
+            """
+            df = self.execute_query(query, [customer_id, account_no])
+            
+            monthly_total = float(df['monthly_total'].iloc[0] or 0.0)
+            monthly_txn_count = int(df['monthly_txn_count'].iloc[0] or 0)
+            monthly_avg = float(df['monthly_avg_amount'].iloc[0] or 0.0)
+            
+            monthly_deviation = 0.0
+            if monthly_avg > 0:
+                query_deviation = """
+                    SELECT AVG(ABS(AmountInAed - ?)) as avg_deviation
+                    FROM TransactionHistoryLogs 
+                    WHERE CustomerId = ? AND FromAccountNo = ? 
+                    AND MONTH(CreateDate) = MONTH(GETDATE()) 
+                    AND YEAR(CreateDate) = YEAR(GETDATE())
+                """
+                df_dev = self.execute_query(query_deviation, [monthly_avg, customer_id, account_no])
+                monthly_deviation = float(df_dev['avg_deviation'].iloc[0] or 0.0)
+            
+            return {
+                "current_month_spending": monthly_total,
+                "user_monthly_txn_count": monthly_txn_count,
+                "user_monthly_avg_amount": monthly_avg,
+                "user_monthly_deviation": monthly_deviation
+            }
+        except Exception as e:
+            logger.error(f"Error getting monthly stats: {e}")
+            return {
+                "current_month_spending": 0.0,
+                "user_monthly_txn_count": 0,
+                "user_monthly_avg_amount": 0.0,
+                "user_monthly_deviation": 0.0
+            }
+    
+    def get_velocity_metrics(self, customer_id: str, account_no: str) -> Dict[str, Any]:
+        try:
+            query = """
+                SELECT 
+                    COUNT(CASE WHEN CreateDate >= DATEADD(MINUTE, -10, GETDATE()) THEN 1 END) as txn_count_10min,
+                    COUNT(CASE WHEN CreateDate >= DATEADD(HOUR, -1, GETDATE()) THEN 1 END) as txn_count_1hour,
+                    MAX(CreateDate) as last_txn_time
+                FROM TransactionHistoryLogs 
+                WHERE CustomerId = ? AND FromAccountNo = ?
+            """
+            df = self.execute_query(query, [customer_id, account_no])
+            
+            txn_count_10min = int(df['txn_count_10min'].iloc[0] or 0)
+            txn_count_1hour = int(df['txn_count_1hour'].iloc[0] or 0)
+            last_txn_time = df['last_txn_time'].iloc[0]
+            
+            time_since_last_txn = 3600.0
+            if last_txn_time:
+                from datetime import datetime
+                time_diff = datetime.now() - last_txn_time
+                time_since_last_txn = time_diff.total_seconds()
+            
+            return {
+                "txn_count_10min": txn_count_10min,
+                "txn_count_1hour": txn_count_1hour,
+                "time_since_last_txn": time_since_last_txn
+            }
+        except Exception as e:
+            logger.error(f"Error getting velocity metrics: {e}")
+            return {
+                "txn_count_10min": 0,
+                "txn_count_1hour": 0,
+                "time_since_last_txn": 3600.0
+            }
+    
+    def get_all_user_stats(self, customer_id: str, account_no: str) -> Dict[str, Any]:
+        try:
+            base_stats = self.get_user_statistics(customer_id, account_no)
+            weekly_stats = self.get_weekly_stats(customer_id, account_no)
+            monthly_stats = self.get_monthly_stats(customer_id, account_no)
+            velocity_stats = self.get_velocity_metrics(customer_id, account_no)
+            
+            combined_stats = {
+                **base_stats,
+                **weekly_stats,
+                **monthly_stats,
+                **velocity_stats
+            }
+            
+            return combined_stats
+        except Exception as e:
+            logger.error(f"Error getting all user stats: {e}")
+            return {
+                "user_avg_amount": 5000.0,
+                "user_std_amount": 2000.0,
+                "user_max_amount": 15000.0,
+                "user_txn_frequency": 0,
+                "user_international_ratio": 0.0,
+                "current_month_spending": 0.0,
+                "user_weekly_total": 0.0,
+                "user_weekly_txn_count": 0,
+                "user_weekly_avg_amount": 0.0,
+                "user_weekly_deviation": 0.0,
+                "user_monthly_txn_count": 0,
+                "user_monthly_avg_amount": 0.0,
+                "user_monthly_deviation": 0.0,
+                "txn_count_10min": 0,
+                "txn_count_1hour": 0,
+                "time_since_last_txn": 3600.0
+            }
+    
     def __enter__(self):
         self.connect()
         return self
