@@ -170,6 +170,63 @@
 					"path": ["api", "check-limits"]
 				}
 			}
+		},
+		{
+			"name": "Get Pending Transactions",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/transactions/pending",
+					"host": ["{{base_url}}"],
+					"path": ["api", "transactions", "pending"]
+				},
+				"description": "Get all transactions that are pending user approval"
+			}
+		},
+		{
+			"name": "Approve Transaction",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"transaction_id\": \"txn_ae837aca\",\n    \"customer_id\": \"1001\",\n    \"comments\": \"Yes, this is my transaction\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/transaction/approve",
+					"host": ["{{base_url}}"],
+					"path": ["api", "transaction", "approve"]
+				},
+				"description": "Customer approves their own transaction. Replace transaction_id with actual ID from pending list."
+			}
+		},
+		{
+			"name": "Reject Transaction",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"transaction_id\": \"txn_xyz123\",\n    \"customer_id\": \"1001\",\n    \"reason\": \"I did not make this transaction\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/transaction/reject",
+					"host": ["{{base_url}}"],
+					"path": ["api", "transaction", "reject"]
+				},
+				"description": "Customer rejects suspicious transaction. Replace transaction_id with actual ID from pending list."
+			}
 		}
 	]
 }

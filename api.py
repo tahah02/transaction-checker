@@ -36,6 +36,22 @@ class TransactionResponse(BaseModel):
     transaction_id: str
     processing_time_ms: int
 
+class ApprovalRequest(BaseModel):
+    transaction_id: str
+    customer_id: str
+    comments: Optional[str] = ""
+
+class RejectionRequest(BaseModel):
+    transaction_id: str
+    customer_id: str
+    reason: str
+
+class ActionResponse(BaseModel):
+    status: str
+    transaction_id: str
+    timestamp: str
+    message: str
+
 model, features, scaler = load_model()
 autoencoder = AutoencoderInference()
 autoencoder.load()
@@ -53,7 +69,8 @@ def save_transaction_to_file(request: TransactionRequest, decision: str, risk_sc
                 writer.writerow([
                     'Timestamp', 'Customer_ID', 'From_Account', 'To_Account',
                     'Amount', 'Transfer_Type', 'Bank_Country', 'Decision',
-                    'Risk_Score', 'Reasons', 'Transaction_ID'
+                    'Risk_Score', 'Reasons', 'Transaction_ID',
+                    'User_Action', 'Actioned_By', 'Action_Timestamp', 'Action_Comments'
                 ])
             
             writer.writerow([
@@ -67,13 +84,51 @@ def save_transaction_to_file(request: TransactionRequest, decision: str, risk_sc
                 decision,
                 risk_score,
                 ' | '.join(reasons),
-                transaction_id
+                transaction_id,
+                'PENDING',  # User_Action
+                '',         # Actioned_By
+                '',         # Action_Timestamp
+                ''          # Action_Comments
             ])
         
         logger.info(f"Transaction {transaction_id} saved to {file_path}")
     except Exception as e:
         logger.error(f"Failed to save transaction to file: {e}")
         # Don't raise - we don't want to fail the API call if file save fails
+
+
+def update_transaction_status(transaction_id: str, action: str, actioned_by: str, comments: str = "") -> bool:
+    try:
+        file_path = 'data/api_transactions.csv'
+        
+        if not os.path.isfile(file_path):
+            logger.error(f"Transaction file not found: {file_path}")
+            return False
+        
+        # Read CSV
+        df = pd.read_csv(file_path)
+        
+        # Find transaction
+        mask = df['Transaction_ID'] == transaction_id
+        if not mask.any():
+            logger.error(f"Transaction not found: {transaction_id}")
+            return False
+        
+        # Update status
+        df.loc[mask, 'User_Action'] = action
+        df.loc[mask, 'Actioned_By'] = actioned_by
+        df.loc[mask, 'Action_Timestamp'] = datetime.now().isoformat()
+        df.loc[mask, 'Action_Comments'] = comments
+        
+        # Save back to CSV
+        df.to_csv(file_path, index=False)
+        
+        logger.info(f"Transaction {transaction_id} updated to {action} by {actioned_by}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to update transaction status: {e}")
+        return False
 
 
 @app.get("/api/health")
@@ -195,3 +250,121 @@ def analyze_transaction(request: TransactionRequest):
         transaction_id=transaction_id,
         processing_time_ms=processing_time
     )
+
+
+@app.post("/api/transaction/approve", response_model=ActionResponse)
+def approve_transaction(request: ApprovalRequest):
+    try:
+        success = update_transaction_status(
+            transaction_id=request.transaction_id,
+            action="APPROVED",
+            actioned_by=request.customer_id,
+            comments=request.comments
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Transaction {request.transaction_id} not found or update failed"
+            )
+        
+        return ActionResponse(
+            status="approved",
+            transaction_id=request.transaction_id,
+            timestamp=datetime.now().isoformat(),
+            message="Transaction approved successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error approving transaction: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/api/transaction/reject", response_model=ActionResponse)
+def reject_transaction(request: RejectionRequest):
+    try:
+        success = update_transaction_status(
+            transaction_id=request.transaction_id,
+            action="REJECTED",
+            actioned_by=request.customer_id,
+            comments=request.reason
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Transaction {request.transaction_id} not found or update failed"
+            )
+        
+        return ActionResponse(
+            status="rejected",
+            transaction_id=request.transaction_id,
+            timestamp=datetime.now().isoformat(),
+            message="Transaction rejected successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error rejecting transaction: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.get("/api/transactions/pending")
+def get_pending_transactions():
+    try:
+        file_path = 'data/api_transactions.csv'
+        
+        if not os.path.isfile(file_path):
+            return {
+                "count": 0,
+                "transactions": []
+            }
+        
+        # Read CSV
+        df = pd.read_csv(file_path)
+        
+        # Filter pending transactions
+        pending_df = df[df['User_Action'] == 'PENDING']
+        
+        # Convert to list of dicts
+        transactions = []
+        for _, row in pending_df.iterrows():
+            # Safely convert all numeric values
+            try:
+                amount = float(row['Amount'])
+                if pd.isna(amount) or np.isinf(amount):
+                    amount = 0.0
+            except:
+                amount = 0.0
+            
+            try:
+                risk_score = float(row['Risk_Score'])
+                if pd.isna(risk_score) or np.isinf(risk_score):
+                    risk_score = 0.0
+            except:
+                risk_score = 0.0
+            
+            transactions.append({
+                "transaction_id": str(row['Transaction_ID']),
+                "customer_id": str(row['Customer_ID']),
+                "from_account": str(row['From_Account']),
+                "to_account": str(row['To_Account']),
+                "amount": amount,
+                "transfer_type": str(row['Transfer_Type']),
+                "decision": str(row['Decision']),
+                "risk_score": risk_score,
+                "reasons": str(row['Reasons']),
+                "timestamp": str(row['Timestamp'])
+            })
+        
+        return {
+            "count": len(transactions),
+            "transactions": transactions
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching pending transactions: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

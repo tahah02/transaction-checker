@@ -182,9 +182,9 @@ class DatabaseService:
                     "current_month_spending": 0.0
                 }
             
-            avg_amount = df['AmountInAed'].mean()
-            std_amount = df['AmountInAed'].std() if len(df) > 1 else 2000.0
-            max_amount = df['AmountInAed'].max()
+            avg_amount = float(df['AmountInAed'].mean())
+            std_amount = float(df['AmountInAed'].std()) if len(df) > 1 else 2000.0
+            max_amount = float(df['AmountInAed'].max())
             txn_count = len(df)
             
             intl_ratio = 0.0
