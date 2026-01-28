@@ -52,11 +52,11 @@ def check_rule_violation(
             f"Monthly spending AED {projected:,.2f} exceeds limit AED {threshold:,.2f}"
         )
 
-    # New beneficiary check - DISABLED FOR TESTING
-    # if is_new_beneficiary == 1:
-    #     violated = True
-    #     reasons.append(
-    #         f"New beneficiary detected - requires user approval for security"
-    #     )
+    # New beneficiary check
+    if is_new_beneficiary == 1:
+        violated = True
+        reasons.append(
+            "New beneficiary detected - first time transaction to this recipient requires approval"
+        )
 
     return violated, reasons, threshold

@@ -230,13 +230,19 @@ def dashboard(df, model, features, scaler=None, autoencoder=None):
     st.markdown("---")
 
     st.subheader("Step 2: Transaction Details")
-    c1, c2, c3 = st.columns(3)
+    c1, c2 = st.columns(2)
     
     with c1:
         st.markdown("**Transaction Amount (AED)**")
         amount = st.number_input("", min_value=0.0, max_value=1000000.0, value=1000.0, step=100.0, key="amt_input")
     
     with c2:
+        st.markdown("**Recipient Account Number**")
+        recipient_account = st.text_input("", placeholder="Enter recipient account number", key="recipient_input")
+    
+    c3, c4, c5 = st.columns(3)
+    
+    with c3:
         st.markdown("**Transfer Type**")
         types = {
             'O': 'O - Own Account', 
@@ -249,10 +255,14 @@ def dashboard(df, model, features, scaler=None, autoencoder=None):
         }
         t_type = st.selectbox("", list(types.keys()), format_func=lambda x: types[x], key="type_input")
     
-    with c3:
+    with c4:
         st.markdown("**Bank Country**")
         countries = ['UAE', 'USA', 'UK', 'India', 'Pakistan', 'Philippines', 'Egypt', 'Other']
         country = st.selectbox("", countries, key="country_input")
+    
+    with c5:
+        st.markdown("**Recipient Name (Optional)**")
+        recipient_name = st.text_input("", placeholder="Recipient name", key="recipient_name_input")
     
     st.markdown("---")
     
@@ -261,6 +271,11 @@ def dashboard(df, model, features, scaler=None, autoencoder=None):
     current_vel = get_velocity(cid, account)
     
     if st.button("Process Transaction", type="primary", use_container_width=True):
+        # Validate recipient account
+        if not recipient_account or recipient_account.strip() == "":
+            st.error("Please enter recipient account number")
+            st.stop()
+        
         current_vel = get_velocity(cid, account)
         
         txn_count_10min = current_vel['txn_count_10min'] + 1
@@ -290,6 +305,13 @@ def dashboard(df, model, features, scaler=None, autoencoder=None):
             'current_month_spending': monthly_spending
         }
 
+        # Check if beneficiary is new
+        try:
+            is_new_ben = db.check_new_beneficiary(cid, recipient_account.strip())
+        except Exception as e:
+            st.warning(f"Could not verify beneficiary status: {e}")
+            is_new_ben = 0  # Assume existing beneficiary if check fails
+
         txn = {
             'amount': amount, 
             'transfer_type': t_type, 
@@ -297,13 +319,15 @@ def dashboard(df, model, features, scaler=None, autoencoder=None):
             'account': account,
             'txn_count_10min': txn_count_10min,
             'txn_count_1hour': txn_count_1hour,
-            'time_since_last_txn': current_vel['time_since_last_txn']
+            'time_since_last_txn': current_vel['time_since_last_txn'],
+            'is_new_beneficiary': is_new_ben
         }
 
         st.session_state.result = make_decision(txn, user_stats, model, features, autoencoder=autoencoder)
         st.session_state.result['amount'] = amount
         st.session_state.result['t_type'] = t_type
         st.session_state.result['account'] = account
+        st.session_state.result['recipient_account'] = recipient_account.strip()
         st.session_state.result['txn_count_10min'] = txn_count_10min
         st.session_state.result['txn_count_1hour'] = txn_count_1hour
         st.rerun()

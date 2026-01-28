@@ -112,12 +112,21 @@ class DatabaseService:
                 if not self.connect():
                     raise Exception("Cannot connect to database")
             
+            cursor = self.connection.cursor()
+            
             if params:
-                # Convert list to tuple for pymssql compatibility
                 params_tuple = tuple(params) if isinstance(params, list) else params
-                return pd.read_sql(query, self.connection, params=params_tuple)
+                cursor.execute(query, params_tuple)
             else:
-                return pd.read_sql(query, self.connection)
+                cursor.execute(query)
+            
+            # Fetch results and column names
+            columns = [desc[0] for desc in cursor.description]
+            rows = cursor.fetchall()
+            cursor.close()
+            
+            # Convert to DataFrame
+            return pd.DataFrame.from_records(rows, columns=columns)
         except Exception as e:
             logger.error(f"Query error: {e}")
             raise
@@ -128,7 +137,10 @@ class DatabaseService:
         return df['CustomerId'].astype(str).tolist()
     
     def get_customer_accounts(self, customer_id: str) -> List[str]:
-        query = "SELECT DISTINCT FromAccountNo FROM TransactionHistoryLogs WHERE CustomerId = ? AND FromAccountNo IS NOT NULL ORDER BY FromAccountNo"
+        if DRIVER_TYPE == 'pymssql':
+            query = "SELECT DISTINCT FromAccountNo FROM TransactionHistoryLogs WHERE CustomerId = %s AND FromAccountNo IS NOT NULL ORDER BY FromAccountNo"
+        else:
+            query = "SELECT DISTINCT FromAccountNo FROM TransactionHistoryLogs WHERE CustomerId = ? AND FromAccountNo IS NOT NULL ORDER BY FromAccountNo"
         df = self.execute_query(query, [customer_id])
         return df['FromAccountNo'].astype(str).tolist()
     
@@ -136,15 +148,24 @@ class DatabaseService:
         columns_str = ", ".join([f"[{col}]" for col in self.REQUIRED_COLUMNS])
         # Try both with and without leading zeros
         padded_account = account_no.zfill(14)  # Pad to 14 digits
-        query = f"""SELECT {columns_str} FROM TransactionHistoryLogs 
-                    WHERE CustomerId = ? 
-                    AND (FromAccountNo = ? OR FromAccountNo = ?)
-                    ORDER BY CreateDate DESC"""
+        if DRIVER_TYPE == 'pymssql':
+            query = f"""SELECT {columns_str} FROM TransactionHistoryLogs 
+                        WHERE CustomerId = %s 
+                        AND (FromAccountNo = %s OR FromAccountNo = %s)
+                        ORDER BY CreateDate DESC"""
+        else:
+            query = f"""SELECT {columns_str} FROM TransactionHistoryLogs 
+                        WHERE CustomerId = ? 
+                        AND (FromAccountNo = ? OR FromAccountNo = ?)
+                        ORDER BY CreateDate DESC"""
         return self.execute_query(query, [customer_id, account_no, padded_account])
     
     def get_customer_all_transactions(self, customer_id: str) -> pd.DataFrame:
         columns_str = ", ".join([f"[{col}]" for col in self.REQUIRED_COLUMNS])
-        query = f"SELECT {columns_str} FROM TransactionHistoryLogs WHERE CustomerId = ? ORDER BY FromAccountNo, CreateDate DESC"
+        if DRIVER_TYPE == 'pymssql':
+            query = f"SELECT {columns_str} FROM TransactionHistoryLogs WHERE CustomerId = %s ORDER BY FromAccountNo, CreateDate DESC"
+        else:
+            query = f"SELECT {columns_str} FROM TransactionHistoryLogs WHERE CustomerId = ? ORDER BY FromAccountNo, CreateDate DESC"
         return self.execute_query(query, [customer_id])
     
     def get_user_statistics(self, customer_id: str, account_no: str) -> Dict[str, Any]:
@@ -195,13 +216,22 @@ class DatabaseService:
     def get_monthly_spending(self, customer_id: str, account_no: str) -> float:
         try:
             padded_account = account_no.zfill(14)
-            query = """
-                SELECT SUM(AmountInAed) as monthly_total
-                FROM TransactionHistoryLogs 
-                WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
-                AND MONTH(CreateDate) = MONTH(GETDATE()) 
-                AND YEAR(CreateDate) = YEAR(GETDATE())
-            """
+            if DRIVER_TYPE == 'pymssql':
+                query = """
+                    SELECT SUM(AmountInAed) as monthly_total
+                    FROM TransactionHistoryLogs 
+                    WHERE CustomerId = %s AND (FromAccountNo = %s OR FromAccountNo = %s)
+                    AND MONTH(CreateDate) = MONTH(GETDATE()) 
+                    AND YEAR(CreateDate) = YEAR(GETDATE())
+                """
+            else:
+                query = """
+                    SELECT SUM(AmountInAed) as monthly_total
+                    FROM TransactionHistoryLogs 
+                    WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
+                    AND MONTH(CreateDate) = MONTH(GETDATE()) 
+                    AND YEAR(CreateDate) = YEAR(GETDATE())
+                """
             df = self.execute_query(query, [customer_id, account_no, padded_account])
             return float(df['monthly_total'].iloc[0] or 0.0)
         except Exception as e:
@@ -210,7 +240,6 @@ class DatabaseService:
     
     def check_new_beneficiary(self, customer_id: str, recipient_account: str) -> int:
         try:
-            # Use %s for pymssql, ? for pyodbc
             if DRIVER_TYPE == 'pymssql':
                 query = "SELECT COUNT(*) as count FROM TransactionHistoryLogs WHERE CustomerId = %s AND ReceipentAccount = %s"
             else:
@@ -225,16 +254,28 @@ class DatabaseService:
     def get_weekly_stats(self, customer_id: str, account_no: str) -> Dict[str, Any]:
         try:
             padded_account = account_no.zfill(14)
-            query = """
-                SELECT 
-                    SUM(AmountInAed) as weekly_total,
-                    COUNT(*) as weekly_txn_count,
-                    AVG(AmountInAed) as weekly_avg_amount,
-                    STDEV(AmountInAed) as weekly_std
-                FROM TransactionHistoryLogs 
-                WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
-                AND CreateDate >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))
-            """
+            if DRIVER_TYPE == 'pymssql':
+                query = """
+                    SELECT 
+                        SUM(AmountInAed) as weekly_total,
+                        COUNT(*) as weekly_txn_count,
+                        AVG(AmountInAed) as weekly_avg_amount,
+                        STDEV(AmountInAed) as weekly_std
+                    FROM TransactionHistoryLogs 
+                    WHERE CustomerId = %s AND (FromAccountNo = %s OR FromAccountNo = %s)
+                    AND CreateDate >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))
+                """
+            else:
+                query = """
+                    SELECT 
+                        SUM(AmountInAed) as weekly_total,
+                        COUNT(*) as weekly_txn_count,
+                        AVG(AmountInAed) as weekly_avg_amount,
+                        STDEV(AmountInAed) as weekly_std
+                    FROM TransactionHistoryLogs 
+                    WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
+                    AND CreateDate >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))
+                """
             df = self.execute_query(query, [customer_id, account_no, padded_account])
             
             weekly_total = float(df['weekly_total'].iloc[0] or 0.0)
@@ -244,12 +285,20 @@ class DatabaseService:
             
             weekly_deviation = 0.0
             if weekly_avg > 0:
-                query_deviation = """
-                    SELECT AVG(ABS(AmountInAed - ?)) as avg_deviation
-                    FROM TransactionHistoryLogs 
-                    WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
-                    AND CreateDate >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))
-                """
+                if DRIVER_TYPE == 'pymssql':
+                    query_deviation = """
+                        SELECT AVG(ABS(AmountInAed - %s)) as avg_deviation
+                        FROM TransactionHistoryLogs 
+                        WHERE CustomerId = %s AND (FromAccountNo = %s OR FromAccountNo = %s)
+                        AND CreateDate >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))
+                    """
+                else:
+                    query_deviation = """
+                        SELECT AVG(ABS(AmountInAed - ?)) as avg_deviation
+                        FROM TransactionHistoryLogs 
+                        WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
+                        AND CreateDate >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))
+                    """
                 df_dev = self.execute_query(query_deviation, [weekly_avg, customer_id, account_no, padded_account])
                 weekly_deviation = float(df_dev['avg_deviation'].iloc[0] or 0.0)
             
@@ -271,16 +320,28 @@ class DatabaseService:
     def get_monthly_stats(self, customer_id: str, account_no: str) -> Dict[str, Any]:
         try:
             padded_account = account_no.zfill(14)
-            query = """
-                SELECT 
-                    SUM(AmountInAed) as monthly_total,
-                    COUNT(*) as monthly_txn_count,
-                    AVG(AmountInAed) as monthly_avg_amount
-                FROM TransactionHistoryLogs 
-                WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
-                AND MONTH(CreateDate) = MONTH(GETDATE()) 
-                AND YEAR(CreateDate) = YEAR(GETDATE())
-            """
+            if DRIVER_TYPE == 'pymssql':
+                query = """
+                    SELECT 
+                        SUM(AmountInAed) as monthly_total,
+                        COUNT(*) as monthly_txn_count,
+                        AVG(AmountInAed) as monthly_avg_amount
+                    FROM TransactionHistoryLogs 
+                    WHERE CustomerId = %s AND (FromAccountNo = %s OR FromAccountNo = %s)
+                    AND MONTH(CreateDate) = MONTH(GETDATE()) 
+                    AND YEAR(CreateDate) = YEAR(GETDATE())
+                """
+            else:
+                query = """
+                    SELECT 
+                        SUM(AmountInAed) as monthly_total,
+                        COUNT(*) as monthly_txn_count,
+                        AVG(AmountInAed) as monthly_avg_amount
+                    FROM TransactionHistoryLogs 
+                    WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
+                    AND MONTH(CreateDate) = MONTH(GETDATE()) 
+                    AND YEAR(CreateDate) = YEAR(GETDATE())
+                """
             df = self.execute_query(query, [customer_id, account_no, padded_account])
             
             monthly_total = float(df['monthly_total'].iloc[0] or 0.0)
@@ -289,14 +350,22 @@ class DatabaseService:
             
             monthly_deviation = 0.0
             if monthly_avg > 0:
-                query_deviation = """
-                    SELECT AVG(ABS(AmountInAed - ?)) as avg_deviation
-                    FROM TransactionHistoryLogs 
-                    WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?) 
-                    AND MONTH(CreateDate) = MONTH(GETDATE()) 
-                    AND MONTH(CreateDate) = MONTH(GETDATE()) 
-                    AND YEAR(CreateDate) = YEAR(GETDATE())
-                """
+                if DRIVER_TYPE == 'pymssql':
+                    query_deviation = """
+                        SELECT AVG(ABS(AmountInAed - %s)) as avg_deviation
+                        FROM TransactionHistoryLogs 
+                        WHERE CustomerId = %s AND (FromAccountNo = %s OR FromAccountNo = %s) 
+                        AND MONTH(CreateDate) = MONTH(GETDATE()) 
+                        AND YEAR(CreateDate) = YEAR(GETDATE())
+                    """
+                else:
+                    query_deviation = """
+                        SELECT AVG(ABS(AmountInAed - ?)) as avg_deviation
+                        FROM TransactionHistoryLogs 
+                        WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?) 
+                        AND MONTH(CreateDate) = MONTH(GETDATE()) 
+                        AND YEAR(CreateDate) = YEAR(GETDATE())
+                    """
                 df_dev = self.execute_query(query_deviation, [monthly_avg, customer_id, account_no, padded_account])
                 monthly_deviation = float(df_dev['avg_deviation'].iloc[0] or 0.0)
             
@@ -318,14 +387,24 @@ class DatabaseService:
     def get_velocity_metrics(self, customer_id: str, account_no: str) -> Dict[str, Any]:
         try:
             padded_account = account_no.zfill(14)
-            query = """
-                SELECT 
-                    COUNT(CASE WHEN CreateDate >= DATEADD(MINUTE, -10, GETDATE()) THEN 1 END) as txn_count_10min,
-                    COUNT(CASE WHEN CreateDate >= DATEADD(HOUR, -1, GETDATE()) THEN 1 END) as txn_count_1hour,
-                    MAX(CreateDate) as last_txn_time
-                FROM TransactionHistoryLogs 
-                WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
-            """
+            if DRIVER_TYPE == 'pymssql':
+                query = """
+                    SELECT 
+                        COUNT(CASE WHEN CreateDate >= DATEADD(MINUTE, -10, GETDATE()) THEN 1 END) as txn_count_10min,
+                        COUNT(CASE WHEN CreateDate >= DATEADD(HOUR, -1, GETDATE()) THEN 1 END) as txn_count_1hour,
+                        MAX(CreateDate) as last_txn_time
+                    FROM TransactionHistoryLogs 
+                    WHERE CustomerId = %s AND (FromAccountNo = %s OR FromAccountNo = %s)
+                """
+            else:
+                query = """
+                    SELECT 
+                        COUNT(CASE WHEN CreateDate >= DATEADD(MINUTE, -10, GETDATE()) THEN 1 END) as txn_count_10min,
+                        COUNT(CASE WHEN CreateDate >= DATEADD(HOUR, -1, GETDATE()) THEN 1 END) as txn_count_1hour,
+                        MAX(CreateDate) as last_txn_time
+                    FROM TransactionHistoryLogs 
+                    WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
+                """
             df = self.execute_query(query, [customer_id, account_no, padded_account])
             
             txn_count_10min = int(df['txn_count_10min'].iloc[0] or 0)

@@ -3,8 +3,8 @@ version: '3.8'
 services:
   fraud-detection-api:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: Docker/Dockerfile
     container_name: fraud-detection-api
     ports:
       - "8000:8000"
@@ -21,7 +21,10 @@ services:
     
     volumes:
       # Mount models from host (writable for training)
-      - ./backend/model:/app/backend/model
+      - ../backend/model:/app/backend/model
+      
+      # Mount data directory for API transactions
+      - ../data:/app/data
       
       # Optional: Mount logs directory
       # - ./logs:/app/logs

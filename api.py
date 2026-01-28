@@ -5,12 +5,16 @@ from typing import List, Optional
 import pandas as pd
 import numpy as np
 import uuid
+import logging
+import csv
+import os
 from backend.hybrid_decision import make_decision
 from backend.utils import load_model
 from backend.autoencoder import AutoencoderInference
 from backend.rule_engine import calculate_all_limits
 from backend.db_service import get_db_service
 
+logger = logging.getLogger(__name__)
 app = FastAPI(title="Banking Fraud Detection API", version="1.0.0")
 db = get_db_service()
 
@@ -35,6 +39,41 @@ class TransactionResponse(BaseModel):
 model, features, scaler = load_model()
 autoencoder = AutoencoderInference()
 autoencoder.load()
+
+
+def save_transaction_to_file(request: TransactionRequest, decision: str, risk_score: float, reasons: List[str], transaction_id: str):
+    try:
+        file_path = 'data/api_transactions.csv'
+        file_exists = os.path.isfile(file_path)
+        
+        with open(file_path, 'a', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            
+            if not file_exists:
+                writer.writerow([
+                    'Timestamp', 'Customer_ID', 'From_Account', 'To_Account',
+                    'Amount', 'Transfer_Type', 'Bank_Country', 'Decision',
+                    'Risk_Score', 'Reasons', 'Transaction_ID'
+                ])
+            
+            writer.writerow([
+                datetime.now().isoformat(),
+                request.customer_id,
+                request.from_account_no,
+                request.to_account_no,
+                request.transaction_amount,
+                request.transfer_type,
+                request.bank_country,
+                decision,
+                risk_score,
+                ' | '.join(reasons),
+                transaction_id
+            ])
+        
+        logger.info(f"Transaction {transaction_id} saved to {file_path}")
+    except Exception as e:
+        logger.error(f"Failed to save transaction to file: {e}")
+        # Don't raise - we don't want to fail the API call if file save fails
 
 
 @app.get("/api/health")
@@ -110,8 +149,12 @@ def analyze_transaction(request: TransactionRequest):
     
     try:
         is_new_ben = db.check_new_beneficiary(request.customer_id, request.to_account_no)
-    except:
-        is_new_ben = 0  # Assume existing beneficiary if DB check fails
+    except Exception as e:
+        logger.error(f"Beneficiary check failed - database unavailable: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Service temporarily unavailable - unable to verify beneficiary. Please try again."
+        )
     
     txn = {
         "amount": request.transaction_amount,
@@ -130,6 +173,14 @@ def analyze_transaction(request: TransactionRequest):
     
     processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
     transaction_id = f"txn_{uuid.uuid4().hex[:8]}"
+    
+    save_transaction_to_file(
+        request=request,
+        decision=decision,
+        risk_score=result.get('risk_score', 0.0),
+        reasons=result.get('reasons', []),
+        transaction_id=transaction_id
+    )
     
     return TransactionResponse(
         decision=decision,
