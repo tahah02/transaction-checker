@@ -18,9 +18,9 @@ User Statistics Retrieval
 Velocity Metrics Calculation
          ↓
 Triple-Layer Fraud Detection
-    ├── Rule Engine
-    ├── Isolation Forest (ML)
-    └── Autoencoder (Neural Network)
+     Rule Engine
+     Isolation Forest (ML)
+     Autoencoder (Neural Network)
          ↓
 Decision Aggregation
          ↓
@@ -61,9 +61,7 @@ key = f"{customer_id}_{account_no}"
 count_10min = sum(1 for t in history if (now - t).total_seconds() < 600)
 count_1hour = len(history)  # Already filtered to last hour
 time_since_last = (now - max(history)).total_seconds() if history else 3600
-```
-
-**Business Rules**:
+``` **Business Rules**:
 - **10-minute window**: Detects rapid-fire transaction attempts
 - **1-hour window**: Identifies sustained high-frequency activity
 - **Time since last**: Measures transaction spacing patterns
@@ -77,11 +75,7 @@ Based on existing Streamlit logic:
 
 ### 4. Triple-Layer Fraud Detection
 
-#### Layer 1: Rule Engine (Business Rules)
-**Purpose**: Hard business rule enforcement
-**Logic**: Imported from `backend.rule_engine.check_rule_violation`
-
-**Key Rules**:
+#### Layer 1: Rule Engine (Business Rules) **Purpose**: Hard business rule enforcement **Logic**: Imported from `backend.rule_engine.check_rule_violation` **Key Rules**:
 1. **Amount Limits by Transfer Type**:
    - **S (Overseas)**: Highest scrutiny, lowest limits
    - **Q (Quick)**: Medium risk, moderate limits  
@@ -110,11 +104,7 @@ Based on existing Streamlit logic:
    - Applies limits based on historical patterns
    - Prevents excessive monthly expenditure
 
-#### Layer 2: Isolation Forest (Machine Learning)
-**Purpose**: Statistical anomaly detection
-**Logic**: Uses pre-trained scikit-learn Isolation Forest model
-
-**Process**:
+#### Layer 2: Isolation Forest (Machine Learning) **Purpose**: Statistical anomaly detection **Logic**: Uses pre-trained scikit-learn Isolation Forest model **Process**:
 1. **Feature Vector Creation**: Converts transaction to 42-feature vector
 2. **Anomaly Scoring**: Model returns anomaly score and prediction
 3. **Decision Logic**:
@@ -125,9 +115,7 @@ Based on existing Streamlit logic:
    if pred == -1:
        result["ml_flag"] = True
        result["is_fraud"] = True
-   ```
-
-**Features Analyzed**:
+   ``` **Features Analyzed**:
 - Transaction amount patterns
 - Transfer type risk scores
 - User behavioral deviations
@@ -135,11 +123,7 @@ Based on existing Streamlit logic:
 - Velocity metrics
 - Historical spending patterns
 
-#### Layer 3: Autoencoder (Neural Network)
-**Purpose**: Behavioral pattern analysis
-**Logic**: Uses pre-trained TensorFlow/Keras autoencoder
-
-**Process**:
+#### Layer 3: Autoencoder (Neural Network) **Purpose**: Behavioral pattern analysis **Logic**: Uses pre-trained TensorFlow/Keras autoencoder **Process**:
 1. **Feature Preparation**: Creates 42-feature vector for neural network
 2. **Reconstruction Analysis**: Network attempts to reconstruct input
 3. **Error Calculation**: Measures reconstruction error
@@ -148,9 +132,7 @@ Based on existing Streamlit logic:
    if reconstruction_error > threshold:
        result["ae_flag"] = True
        result["is_fraud"] = True
-   ```
-
-**Key Features**:
+   ``` **Key Features**:
 ```python
 ae_features = {
     'transaction_amount': txn.get('amount', 0),
@@ -247,9 +229,7 @@ TRANSFER_TYPE_RISK = {
 ```python
 if decision == "APPROVED":
     stats_manager.record_transaction(customer_id, from_account_no, transaction_amount)
-```
-
-**Updates Performed**:
+``` **Updates Performed**:
 1. **Velocity History**: Adds timestamp to transaction history
 2. **Transaction Frequency**: Increments total transaction count
 3. **Monthly Spending**: Adds amount to current month total
@@ -273,9 +253,7 @@ for i, txn in enumerate(request.transactions):
         # Individual failure doesn't stop batch
         error_result = create_error_response(e, i)
         results.append(error_result)
-```
-
-**Key Principles**:
+``` **Key Principles**:
 - **Isolation**: Each transaction processed independently
 - **Fault Tolerance**: Individual failures don't stop batch
 - **Order Preservation**: Results returned in same order as input
@@ -325,28 +303,23 @@ reasons = ["System error - manual review required"]
 
 ## Business Value and Benefits
 
-### 1. **Consistency with Existing System**
-- Identical fraud detection logic as Streamlit application
+### 1. **Consistency with Existing System** - Identical fraud detection logic as Streamlit application
 - Same business rules and thresholds
 - Consistent user experience across interfaces
 
-### 2. **Real-Time Processing**
-- Sub-200ms response times for single transactions
+### 2. **Real-Time Processing** - Sub-200ms response times for single transactions
 - Immediate velocity tracking and updates
 - Real-time risk assessment
 
-### 3. **Scalability and Integration**
-- REST API enables integration with any banking system
+### 3. **Scalability and Integration** - REST API enables integration with any banking system
 - Batch processing for high-volume scenarios
 - Stateless design supports horizontal scaling
 
-### 4. **Auditability and Transparency**
-- Detailed reasoning for every decision
+### 4. **Auditability and Transparency** - Detailed reasoning for every decision
 - Individual layer scores for analysis
 - Complete transaction tracking and logging
 
-### 5. **Risk Management**
-- Conservative defaults for unknown customers
+### 5. **Risk Management** - Conservative defaults for unknown customers
 - Multiple detection layers prevent bypass
 - Safety-first error handling approach
 

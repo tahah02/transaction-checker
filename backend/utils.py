@@ -14,9 +14,9 @@ def get_feature_engineered_path():
 def get_model_path():
     return 'backend/model/isolation_forest.pkl'
 
-TRANSFER_TYPE_MAPPING = {'S': 'Overseas', 'I': 'Ajman', 'L': 'UAE', 'Q': 'Quick', 'O': 'Own'}
-TRANSFER_TYPE_ENCODED = {'S': 4, 'I': 1, 'L': 2, 'Q': 3, 'O': 0}
-TRANSFER_TYPE_RISK = {'S': 0.9, 'I': 0.1, 'L': 0.2, 'Q': 0.5, 'O': 0.0}
+TRANSFER_TYPE_MAPPING = {'S': 'Overseas', 'I': 'Ajman', 'L': 'UAE', 'Q': 'Quick', 'O': 'Own', 'M': 'MobilePay', 'F': 'Family Transfer'}
+TRANSFER_TYPE_ENCODED = {'S': 4, 'I': 1, 'L': 2, 'Q': 3, 'O': 0, 'M': 5, 'F': 6}
+TRANSFER_TYPE_RISK = {'S': 0.9, 'I': 0.1, 'L': 0.2, 'Q': 0.5, 'O': 0.0, 'M': 0.3, 'F': 0.15}
 
 MODEL_FEATURES = [
     'transaction_amount','flag_amount','transfer_type_encoded','transfer_type_risk',

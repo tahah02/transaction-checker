@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Data files (large CSVs)
+data/*.csv
+data/Clean.csv
+data/feature_datasetv2*.csv
+data/transaction_history.csv
+
+# Documentation
+docs/
+README.md
+attached_assets/
+
+# Streamlit app (not needed for API)
+app.py
+main.py
+.streamlit/
+
+# Environment files (will be passed via docker-compose)
+.env
+
+# Logs
+*.log
+logs/
+
+# Models (will be mounted via volume)
+backend/model/*.h5
+backend/model/*.pkl
+backend/model/*.json
+
+# Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Other
+postman_collection.json
+pyproject.toml
+uv.lock

@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  fraud-detection-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fraud-detection-api
+    ports:
+      - "8000:8000"
+    environment:
+      # Database Configuration
+      - DB_SERVER=10.112.32.4
+      - DB_PORT=1433
+      - DB_DATABASE=retailchannelLogs
+      - DB_USERNAME=dbuser
+      - DB_PASSWORD=Codebase202212?!
+      
+      # Optional: Python environment
+      - PYTHONUNBUFFERED=1
+    
+    volumes:
+      # Mount models from host (writable for training)
+      - ./backend/model:/app/backend/model
+      
+      # Optional: Mount logs directory
+      # - ./logs:/app/logs
+    
+    restart: unless-stopped
+    
+    networks:
+      - fraud-net
+    
+    # Resource limits (optimized for 32GB RAM system)
+    deploy:
+      resources:
+        limits:
+          cpus: '6'          # Maximum 6 CPU cores
+          memory: 8G         # Maximum 8 GB RAM
+        reservations:
+          cpus: '2'          # Minimum 2 CPU cores
+          memory: 2G         # Minimum 2 GB RAM
+
+networks:
+  fraud-net:
+    driver: bridge

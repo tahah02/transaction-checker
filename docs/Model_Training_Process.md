@@ -1,18 +1,12 @@
 # Model Training Process - Isolation Forest & Autoencoder
 
-## 📊 **Training Data Source**
-
-**Dataset**: `data/feature_datasetv2.csv`
+## **Training Data Source** **Dataset**: `data/feature_datasetv2.csv`
 
 - **Features Used**: 41 engineered features from `MODEL_FEATURES` list
 - **Training Approach**: Unsupervised learning (no fraud labels needed)
 - **Data Preprocessing**: StandardScaler normalization (mean=0, std=1)
 
-## 🌲 **Isolation Forest Training**
-
-### **Training Configuration**
-
-```python
+## **Isolation Forest Training** ### **Training Configuration** ```python
 # Model Parameters
 contamination = 0.05        # Expected fraud rate (5%)
 n_estimators = 100          # Number of isolation trees
@@ -20,9 +14,7 @@ random_state = 42           # Reproducible results
 n_jobs = -1                 # Use all CPU cores
 ```
 
-### **Training Implementation**
-
-```python
+### **Training Implementation** ```python
 # Step 1: Load Data
 df = pd.read_csv('data/feature_datasetv2.csv')
 X = df[MODEL_FEATURES].fillna(0).values  # 41 features
@@ -40,16 +32,12 @@ joblib.dump({'model': model, 'features': MODEL_FEATURES}, 'backend/model/isolati
 joblib.dump(scaler, 'backend/model/isolation_forest_scaler.pkl')
 ```
 
-### **Key Features Used**
-
-- **High Impact**: `transaction_amount`, `deviation_from_avg`, `txn_count_30s`, `recent_burst`
+### **Key Features Used** - **High Impact**: `transaction_amount`, `deviation_from_avg`, `txn_count_30s`, `recent_burst`
 - **Behavioral**: `user_avg_amount`, `intl_ratio`, `cross_account_transfer_ratio`
 - **Temporal**: `hour`, `is_night`, `time_since_last`, `transaction_velocity`
 - **Pattern**: `weekly_deviation`, `monthly_deviation`, `rolling_std`
 
-### **Algorithm Learning Process**
-
-- **Tree Building Phase**: Creates 100 isolation trees with random splits
+### **Algorithm Learning Process** - **Tree Building Phase**: Creates 100 isolation trees with random splits
   - **Basis**: Binary Space Partitioning (BSP) algorithm
   - **Purpose**: Each tree learns different patterns to isolate anomalies
   - **Random Sampling**: Each tree uses random subset of data points (256 samples default)
@@ -62,9 +50,7 @@ joblib.dump(scaler, 'backend/model/isolation_forest_scaler.pkl')
   - **Mathematical Foundation**: c(n) = 2H(n-1) - (2(n-1)/n) where H is harmonic number
   - **Isolation Challenge**: Normal data requires more splits to separate
 
-### **Practical Calculation Example (Real Dataset)**
-
-```python
+### **Practical Calculation Example (Real Dataset)** ```python
 # Our dataset has ~1000+ transactions, but Isolation Forest uses max_samples parameter
 # Default max_samples = min(256, n_samples) for efficiency
 # So n = 256 samples per tree (scikit-learn default)
@@ -86,7 +72,7 @@ This is NORMAL because: amount close to user average, no burst activity
 Simulated average path length across 100 trees = 8.7 splits
 s_normal = 8.7 / 10.41 = 0.836
 anomaly_score_normal = 2^(-0.836) = 0.558
-# Result: 0.558 > 0.5 → NORMAL transaction ✓
+# Result: 0.558 > 0.5 → NORMAL transaction 
 
 # Example 2: ANOMALOUS Transaction (Row 9 from dataset)  
 Customer: 1000016, Amount: 375.56 AED, Type: S (Overseas)
@@ -96,7 +82,7 @@ This is ANOMALOUS because: very high velocity (10.14), 5 txns in 1 hour
 Simulated average path length across 100 trees = 3.4 splits
 s_anomaly = 3.4 / 10.41 = 0.327
 anomaly_score_anomaly = 2^(-0.327) = 0.797
-# Result: 0.797 > 0.5 but path much shorter (3.4 vs 8.7) → ANOMALY detected ✓
+# Result: 0.797 > 0.5 but path much shorter (3.4 vs 8.7) → ANOMALY detected 
 
 # Decision Logic Explanation:
 # Row 1: Normal spending pattern, single transaction → longer path (8.7 splits)
@@ -112,9 +98,7 @@ anomaly_score_anomaly = 2^(-0.327) = 0.797
   - **Anomaly Logic**: Easy to isolate = anomalous behavior (shorter average path)
   - **Decision Function**: s(x,n) < 0.5 → anomaly, s(x,n) ≥ 0.5 → normal
 
-### **Isolation Forest Results**
-
-- **Anomaly Detection Rate**: ~5% of transactions flagged as anomalies
+### **Isolation Forest Results** - **Anomaly Detection Rate**: ~5% of transactions flagged as anomalies
   - **Basis**: Contamination parameter set to 0.05 (5% expected fraud rate)
   - **Algorithm Logic**: Trees isolate anomalies in fewer splits than normal data
   - **Decision Function**: Negative scores indicate anomalies (-1 = anomaly, +1 = normal)
@@ -122,11 +106,7 @@ anomaly_score_anomaly = 2^(-0.327) = 0.797
 - **Model Size**: ~2MB (model + scaler)
 - **Training Time**: ~30 seconds on standard hardware
 
-## 🧠 **Autoencoder Training**
-
-### **Neural Network Architecture**
-
-```python
+## **Autoencoder Training** ### **Neural Network Architecture** ```python
 # Network Structure
 Input Layer: 41 features
     ↓
@@ -143,9 +123,7 @@ Dense(64) + BatchNorm + ReLU
 Output Layer: 41 features (reconstruction)
 ```
 
-### **Autoencoder Configuration**
-
-```python
+### **Autoencoder Configuration** ```python
 # Training Parameters
 epochs = 100
 batch_size = 64
@@ -155,9 +133,7 @@ loss = 'mean_squared_error'
 early_stopping = True (patience=5)
 ```
 
-### **Autoencoder Implementation**
-
-```python
+### **Autoencoder Implementation** ```python
 # Step 1: Load & Scale Data
 df = pd.read_csv('data/feature_datasetv2.csv')
 X = df[MODEL_FEATURES].fillna(0).values
@@ -178,9 +154,7 @@ joblib.dump(scaler, 'backend/model/autoencoder_scaler.pkl')
 json.dump({'threshold': threshold}, 'backend/model/autoencoder_threshold.json')
 ```
 
-### **Feature Learning Process**
-
-- **Encoding Phase**: Compresses 41 features → 14 bottleneck neurons
+### **Feature Learning Process** - **Encoding Phase**: Compresses 41 features → 14 bottleneck neurons
   - **Basis**: Dimensionality reduction using neural network layers
   - **Purpose**: Forces network to learn essential patterns only
   - **Compression Ratio**: 41:14 (66% data compression)
@@ -202,17 +176,11 @@ json.dump({'threshold': threshold}, 'backend/model/autoencoder_threshold.json')
   - **Anomaly Logic**: Abnormal patterns = high reconstruction error (can't recreate properly)
   - **Threshold Basis**: Statistical threshold = μ + 3σ (99.7% confidence interval)
 
-### **Autoencoder Results**
-
-- **Threshold Calculation**: Statistical threshold (mean + 3×std)
+### **Autoencoder Results** - **Threshold Calculation**: Statistical threshold (mean + 3×std)
 - **Model Size**: ~5MB (neural network weights)
 - **Training Time**: ~5-10 minutes with early stopping
 
-## 🎯 **Feature Utilization**
-
-### **Both Models Use Same 41 Features**
-
-```python
+## **Feature Utilization** ### **Both Models Use Same 41 Features** ```python
 MODEL_FEATURES = [
     # Core Transaction (5)
     'transaction_amount', 'flag_amount', 'transfer_type_encoded', 
@@ -241,48 +209,30 @@ MODEL_FEATURES = [
 ]
 ```
 
-## 📈 **Training Validation**
-
-### **Isolation Forest Validation**
-
-- **Anomaly Rate Check**: Validates expected contamination rate (5%)
+## **Training Validation** ### **Isolation Forest Validation** - **Anomaly Rate Check**: Validates expected contamination rate (5%)
 - **Prediction Consistency**: Tests model stability on sample data
 - **Feature Importance**: Verifies all 41 features contribute
 
-### **Autoencoder Validation**
-
-- **Reconstruction Quality**: Validates error distribution
+### **Autoencoder Validation** - **Reconstruction Quality**: Validates error distribution
 - **Threshold Accuracy**: Ensures statistical threshold is correct
 - **Model Loading**: Verifies saved model can be loaded and used
 
-## 🔄 **Model Persistence**
+## **Model Persistence** ### **Saved Files** backend/model/
+ isolation_forest.pkl          # IF model + metadata
+ isolation_forest_scaler.pkl   # IF feature scaler
+ autoencoder.h5                # Neural network weights
+ autoencoder_scaler.pkl        # AE feature scaler
+ autoencoder_threshold.json    # AE anomaly threshold
 
-### **Saved Files**
-
-backend/model/
-├── isolation_forest.pkl          # IF model + metadata
-├── isolation_forest_scaler.pkl   # IF feature scaler
-├── autoencoder.h5                # Neural network weights
-├── autoencoder_scaler.pkl        # AE feature scaler
-└── autoencoder_threshold.json    # AE anomaly threshold
-
-### **Model Loading for Inference**
-
-- **Isolation Forest**: Loads model + scaler, ready for real-time scoring
+### **Model Loading for Inference** - **Isolation Forest**: Loads model + scaler, ready for real-time scoring
 - **Autoencoder**: Loads neural network + scaler + threshold for behavioral analysis
 - **Feature Consistency**: Both models use identical 41-feature preprocessing
 
-## ⚡ **Training Performance**
-
-### **Resource Usage**
-
-- **Memory**: ~1GB during training (dataset + models)
+## **Training Performance** ### **Resource Usage** - **Memory**: ~1GB during training (dataset + models)
 - **CPU**: Multi-core utilization for Isolation Forest
 - **GPU**: Optional for Autoencoder (faster training)
 - **Storage**: ~10MB total for all saved models
 
-### **Training Time**
-
-- **Isolation Forest**: 1 hour
+### **Training Time** - **Isolation Forest**: 1 hour
 - **Autoencoder**: 3 hours
 - **Total**: 4 hours for complete training pipeline

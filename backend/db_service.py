@@ -1,9 +1,23 @@
-import pyodbc
 import pandas as pd
 import logging
 import os
 from dotenv import load_dotenv
 from typing import Optional, List, Dict, Any
+
+
+try:
+    import pymssql
+    DRIVER_TYPE = 'pymssql'
+    logger = logging.getLogger(__name__)
+    logger.info("Using pymssql driver")
+except ImportError:
+    try:
+        import pyodbc
+        DRIVER_TYPE = 'pyodbc'
+        logger = logging.getLogger(__name__)
+        logger.info("Using pyodbc driver")
+    except ImportError:
+        raise ImportError("Neither pymssql nor pyodbc is installed. Please install one of them.")
 
 load_dotenv()
 
@@ -32,19 +46,35 @@ class DatabaseService:
             if self.connection:
                 self.disconnect()
             
-            connection_string = (
-                f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-                f"SERVER={self.server},{self.port};"
-                f"DATABASE={self.database};"
-                f"UID={self.username};"
-                f"PWD={self.password};"
-                f"Connection Timeout=15;"
-                f"TrustServerCertificate=yes;"
-                f"Encrypt=no;"
-            )
+            if DRIVER_TYPE == 'pymssql':
+                # pymssql connection (for Docker/Linux)
+                self.connection = pymssql.connect(
+                    server=self.server,
+                    port=int(self.port),
+                    database=self.database,
+                    user=self.username,
+                    password=self.password,
+                    timeout=15,
+                    login_timeout=15
+                )
+                logger.info("Connected using pymssql")
             
-            self.connection = pyodbc.connect(connection_string, timeout=15)
+            elif DRIVER_TYPE == 'pyodbc':
+                # pyodbc connection (for Windows)
+                connection_string = (
+                    f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+                    f"SERVER={self.server},{self.port};"
+                    f"DATABASE={self.database};"
+                    f"UID={self.username};"
+                    f"PWD={self.password};"
+                    f"Connection Timeout=15;"
+                    f"TrustServerCertificate=yes;"
+                    f"Encrypt=no;"
+                )
+                self.connection = pyodbc.connect(connection_string, timeout=15)
+                logger.info("Connected using pyodbc")
             
+            # Test connection
             cursor = self.connection.cursor()
             cursor.execute("SELECT 1")
             cursor.fetchone()
@@ -52,7 +82,7 @@ class DatabaseService:
             
             return True
         except Exception as e:
-            logger.error(f"Connection failed: {e}")
+            logger.error(f"Connection failed with {DRIVER_TYPE}: {e}")
             self.connection = None
             return False
     
@@ -83,7 +113,9 @@ class DatabaseService:
                     raise Exception("Cannot connect to database")
             
             if params:
-                return pd.read_sql(query, self.connection, params=params)
+                # Convert list to tuple for pymssql compatibility
+                params_tuple = tuple(params) if isinstance(params, list) else params
+                return pd.read_sql(query, self.connection, params=params_tuple)
             else:
                 return pd.read_sql(query, self.connection)
         except Exception as e:
@@ -102,8 +134,13 @@ class DatabaseService:
     
     def get_account_transactions(self, customer_id: str, account_no: str) -> pd.DataFrame:
         columns_str = ", ".join([f"[{col}]" for col in self.REQUIRED_COLUMNS])
-        query = f"SELECT {columns_str} FROM TransactionHistoryLogs WHERE CustomerId = ? AND FromAccountNo = ? ORDER BY CreateDate DESC"
-        return self.execute_query(query, [customer_id, account_no])
+        # Try both with and without leading zeros
+        padded_account = account_no.zfill(14)  # Pad to 14 digits
+        query = f"""SELECT {columns_str} FROM TransactionHistoryLogs 
+                    WHERE CustomerId = ? 
+                    AND (FromAccountNo = ? OR FromAccountNo = ?)
+                    ORDER BY CreateDate DESC"""
+        return self.execute_query(query, [customer_id, account_no, padded_account])
     
     def get_customer_all_transactions(self, customer_id: str) -> pd.DataFrame:
         columns_str = ", ".join([f"[{col}]" for col in self.REQUIRED_COLUMNS])
@@ -157,14 +194,15 @@ class DatabaseService:
     
     def get_monthly_spending(self, customer_id: str, account_no: str) -> float:
         try:
+            padded_account = account_no.zfill(14)
             query = """
                 SELECT SUM(AmountInAed) as monthly_total
                 FROM TransactionHistoryLogs 
-                WHERE CustomerId = ? AND FromAccountNo = ? 
+                WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
                 AND MONTH(CreateDate) = MONTH(GETDATE()) 
                 AND YEAR(CreateDate) = YEAR(GETDATE())
             """
-            df = self.execute_query(query, [customer_id, account_no])
+            df = self.execute_query(query, [customer_id, account_no, padded_account])
             return float(df['monthly_total'].iloc[0] or 0.0)
         except Exception as e:
             logger.error(f"Error getting monthly spending: {e}")
@@ -172,7 +210,12 @@ class DatabaseService:
     
     def check_new_beneficiary(self, customer_id: str, recipient_account: str) -> int:
         try:
-            query = "SELECT COUNT(*) as count FROM TransactionHistoryLogs WHERE CustomerId = ? AND ReceipentAccount = ?"
+            # Use %s for pymssql, ? for pyodbc
+            if DRIVER_TYPE == 'pymssql':
+                query = "SELECT COUNT(*) as count FROM TransactionHistoryLogs WHERE CustomerId = %s AND ReceipentAccount = %s"
+            else:
+                query = "SELECT COUNT(*) as count FROM TransactionHistoryLogs WHERE CustomerId = ? AND ReceipentAccount = ?"
+            
             df = self.execute_query(query, [customer_id, recipient_account])
             return 0 if df['count'].iloc[0] > 0 else 1
         except Exception as e:
@@ -181,6 +224,7 @@ class DatabaseService:
     
     def get_weekly_stats(self, customer_id: str, account_no: str) -> Dict[str, Any]:
         try:
+            padded_account = account_no.zfill(14)
             query = """
                 SELECT 
                     SUM(AmountInAed) as weekly_total,
@@ -188,10 +232,10 @@ class DatabaseService:
                     AVG(AmountInAed) as weekly_avg_amount,
                     STDEV(AmountInAed) as weekly_std
                 FROM TransactionHistoryLogs 
-                WHERE CustomerId = ? AND FromAccountNo = ? 
+                WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
                 AND CreateDate >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))
             """
-            df = self.execute_query(query, [customer_id, account_no])
+            df = self.execute_query(query, [customer_id, account_no, padded_account])
             
             weekly_total = float(df['weekly_total'].iloc[0] or 0.0)
             weekly_txn_count = int(df['weekly_txn_count'].iloc[0] or 0)
@@ -203,10 +247,10 @@ class DatabaseService:
                 query_deviation = """
                     SELECT AVG(ABS(AmountInAed - ?)) as avg_deviation
                     FROM TransactionHistoryLogs 
-                    WHERE CustomerId = ? AND FromAccountNo = ? 
+                    WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
                     AND CreateDate >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))
                 """
-                df_dev = self.execute_query(query_deviation, [weekly_avg, customer_id, account_no])
+                df_dev = self.execute_query(query_deviation, [weekly_avg, customer_id, account_no, padded_account])
                 weekly_deviation = float(df_dev['avg_deviation'].iloc[0] or 0.0)
             
             return {
@@ -226,17 +270,18 @@ class DatabaseService:
     
     def get_monthly_stats(self, customer_id: str, account_no: str) -> Dict[str, Any]:
         try:
+            padded_account = account_no.zfill(14)
             query = """
                 SELECT 
                     SUM(AmountInAed) as monthly_total,
                     COUNT(*) as monthly_txn_count,
                     AVG(AmountInAed) as monthly_avg_amount
                 FROM TransactionHistoryLogs 
-                WHERE CustomerId = ? AND FromAccountNo = ? 
+                WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
                 AND MONTH(CreateDate) = MONTH(GETDATE()) 
                 AND YEAR(CreateDate) = YEAR(GETDATE())
             """
-            df = self.execute_query(query, [customer_id, account_no])
+            df = self.execute_query(query, [customer_id, account_no, padded_account])
             
             monthly_total = float(df['monthly_total'].iloc[0] or 0.0)
             monthly_txn_count = int(df['monthly_txn_count'].iloc[0] or 0)
@@ -247,11 +292,12 @@ class DatabaseService:
                 query_deviation = """
                     SELECT AVG(ABS(AmountInAed - ?)) as avg_deviation
                     FROM TransactionHistoryLogs 
-                    WHERE CustomerId = ? AND FromAccountNo = ? 
+                    WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?) 
+                    AND MONTH(CreateDate) = MONTH(GETDATE()) 
                     AND MONTH(CreateDate) = MONTH(GETDATE()) 
                     AND YEAR(CreateDate) = YEAR(GETDATE())
                 """
-                df_dev = self.execute_query(query_deviation, [monthly_avg, customer_id, account_no])
+                df_dev = self.execute_query(query_deviation, [monthly_avg, customer_id, account_no, padded_account])
                 monthly_deviation = float(df_dev['avg_deviation'].iloc[0] or 0.0)
             
             return {
@@ -271,15 +317,16 @@ class DatabaseService:
     
     def get_velocity_metrics(self, customer_id: str, account_no: str) -> Dict[str, Any]:
         try:
+            padded_account = account_no.zfill(14)
             query = """
                 SELECT 
                     COUNT(CASE WHEN CreateDate >= DATEADD(MINUTE, -10, GETDATE()) THEN 1 END) as txn_count_10min,
                     COUNT(CASE WHEN CreateDate >= DATEADD(HOUR, -1, GETDATE()) THEN 1 END) as txn_count_1hour,
                     MAX(CreateDate) as last_txn_time
                 FROM TransactionHistoryLogs 
-                WHERE CustomerId = ? AND FromAccountNo = ?
+                WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
             """
-            df = self.execute_query(query, [customer_id, account_no])
+            df = self.execute_query(query, [customer_id, account_no, padded_account])
             
             txn_count_10min = int(df['txn_count_10min'].iloc[0] or 0)
             txn_count_1hour = int(df['txn_count_1hour'].iloc[0] or 0)
@@ -357,7 +404,7 @@ if __name__ == "__main__":
     
     with DatabaseService() as db:
         if db.connect():
-            print("✅ Connection successful!")
+            print("Connection successful!")
             
             customers = db.get_all_customers()[:5]
             print(f"Sample customers: {customers}")
@@ -370,4 +417,4 @@ if __name__ == "__main__":
                     stats = db.get_user_statistics(customers[0], accounts[0])
                     print(f"Account stats: {stats}")
         else:
-            print("❌ Connection failed!")
+            print("Connection failed!")

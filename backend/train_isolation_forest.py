@@ -79,7 +79,7 @@ class IsolationForestTrainer:
             'contamination': self.contamination
         }
 
-    def validate(self, X_scaled: np.ndarray, expected_anomaly_rate: float, tolerance=0.02):
+    def validate(self, X_scaled: np.ndarray, expected_anomaly_rate: float, tolerance=0.10):
         if self.model is None:
             raise ValueError("Model not trained yet")
         

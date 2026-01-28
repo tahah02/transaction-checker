@@ -130,8 +130,16 @@ def dashboard(df, model, features, scaler=None, autoencoder=None):
     cid = str(st.session_state.customer_id)
     
     try:
-        accounts = db.get_customer_accounts(cid)
-        accounts = [str(a) for a in accounts]
+        accounts_raw = db.get_customer_accounts(cid)
+        # Create mapping: display_value -> original_value
+        account_mapping = {}
+        accounts_display = []
+        for acc in accounts_raw:
+            original = str(acc)
+            display = str(int(acc)) if str(acc).isdigit() else str(acc)
+            account_mapping[display] = original
+            accounts_display.append(display)
+        accounts = accounts_display
     except:
         st.error("Cannot fetch accounts from database")
         return
@@ -144,7 +152,9 @@ def dashboard(df, model, features, scaler=None, autoencoder=None):
         st.error("No accounts found for this customer")
         return
         
-    account = st.selectbox("Select Account", accounts, label_visibility="collapsed")
+    account_display = st.selectbox("Select Account", accounts, label_visibility="collapsed")
+    # Get original account number for queries
+    account = account_mapping.get(account_display, account_display)
     
     try:
         account_data = db.get_account_transactions(cid, account)
@@ -161,7 +171,7 @@ def dashboard(df, model, features, scaler=None, autoencoder=None):
 
     st.sidebar.title("Navigation")
     st.sidebar.markdown(f"**Customer ID:** {cid}")
-    st.sidebar.markdown(f"**Account:** {account}")
+    st.sidebar.markdown(f"**Account:** {account_display}")  # Display without leading zeros
     
     if st.sidebar.button("Logout"):
         st.session_state.logged_in = False
@@ -211,6 +221,8 @@ def dashboard(df, model, features, scaler=None, autoencoder=None):
         st.sidebar.markdown(f"**L - UAE:** AED {limits['L']:,.2f}")
         st.sidebar.markdown(f"**Q - Quick:** AED {limits['Q']:,.2f}")
         st.sidebar.markdown(f"**S - Overseas:** AED {limits['S']:,.2f}")
+        st.sidebar.markdown(f"**M - MobilePay:** AED {limits['M']:,.2f}")
+        st.sidebar.markdown(f"**F - Family Transfer:** AED {limits['F']:,.2f}")
     else:
         avg, std, max_amt = 5000, 2000, 15000
         st.sidebar.warning("No transaction history for this account")
@@ -231,7 +243,9 @@ def dashboard(df, model, features, scaler=None, autoencoder=None):
             'I': 'I - Within Ajman', 
             'L': 'L - Within UAE', 
             'Q': 'Q - Quick Remittance', 
-            'S': 'S - Overseas'
+            'S': 'S - Overseas',
+            'M': 'M - MobilePay',
+            'F': 'F - Family Transfer'
         }
         t_type = st.selectbox("", list(types.keys()), format_func=lambda x: types[x], key="type_input")
     

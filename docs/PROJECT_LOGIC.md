@@ -11,31 +11,31 @@ Yeh system banking transactions ko analyze karta hai aur fraud/anomalies detect 
 ## File Structure (Updated)
 
 ```
-├── app.py                    # Main Streamlit application
-├── backend/
-│   ├── utils.py              # Helper functions aur constants (42 features)
-│   ├── rule_engine.py        # Dynamic threshold calculations
-│   ├── feature_engineering.py # Data ko ML-ready features mein convert
-│   ├── train_isolation_forest.py # Isolation Forest model training
-│   ├── isolation_forest.py   # Isolation Forest inference
-│   ├── train_autoencoder.py  # Autoencoder model training
-│   ├── autoencoder.py        # Autoencoder inference
-│   └── hybrid_decision.py    # ML + Rules combine karke decision
-│   └── model/                # Trained models storage
-│       ├── isolation_forest.pkl
-│       ├── isolation_forest_scaler.pkl
-│       ├── autoencoder.h5
-│       ├── autoencoder_scaler.pkl
-│       └── autoencoder_threshold.json
-├── data/
-│   ├── Clean.csv             # Original clean transaction data
-│   └── feature_datasetv2.csv # Processed features wala data (42 features)
-├── docs/                     # Documentation folder
-│   ├── BRD.md               # Business Requirements Document
-│   ├── PROJECT_LOGIC.md     # This documentation file
-│   ├── projectarchitecture.md # System architecture
-│   └── projectflow.md       # Project workflow
-└── tests/                    # Testing files
+ app.py                    # Main Streamlit application
+ backend/
+    utils.py              # Helper functions aur constants (42 features)
+    rule_engine.py        # Dynamic threshold calculations
+    feature_engineering.py # Data ko ML-ready features mein convert
+    train_isolation_forest.py # Isolation Forest model training
+    isolation_forest.py   # Isolation Forest inference
+    train_autoencoder.py  # Autoencoder model training
+    autoencoder.py        # Autoencoder inference
+    hybrid_decision.py    # ML + Rules combine karke decision
+    model/                # Trained models storage
+        isolation_forest.pkl
+        isolation_forest_scaler.pkl
+        autoencoder.h5
+        autoencoder_scaler.pkl
+        autoencoder_threshold.json
+ data/
+    Clean.csv             # Original clean transaction data
+    feature_datasetv2.csv # Processed features wala data (42 features)
+ docs/                     # Documentation folder
+    BRD.md               # Business Requirements Document
+    PROJECT_LOGIC.md     # This documentation file
+    projectarchitecture.md # System architecture
+    projectflow.md       # Project workflow
+ tests/                    # Testing files
 ```
 
 ---
@@ -90,12 +90,10 @@ MODEL_FEATURES = [
 
 ### Training vs Inference Separation:
 
-#### **Training Files:**
-- `train_isolation_forest.py` - IsolationForestTrainer class
+#### **Training Files:** - `train_isolation_forest.py` - IsolationForestTrainer class
 - `train_autoencoder.py` - AutoencoderTrainer class
 
-#### **Inference Files:**
-- `isolation_forest.py` - IsolationForestInference class
+#### **Inference Files:** - `isolation_forest.py` - IsolationForestInference class
 - `autoencoder.py` - AutoencoderInference class
 
 ### Benefits:
@@ -185,22 +183,22 @@ Threshold = mean_error + (3 × std_error)
 ```
                     Transaction Input
                           ↓
-              ┌───────────────────────┐
-              │   Prepare Features    │
-              │    (42 features)      │
-              └───────────┬───────────┘
+              
+                 Prepare Features    
+                  (42 features)      
+              
                           ↓
-         ┌────────────────┼────────────────┐
+         
          ↓                ↓                ↓
-┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│   Rule Engine   │ │ Isolation Forest│ │   Autoencoder   │
-│ (Business Rules)│ │  (ML Anomaly)   │ │  (Behavioral)   │
-└────────┬────────┘ └────────┬────────┘ └────────┬────────┘
+  
+   Rule Engine     Isolation Forest    Autoencoder   
+ (Business Rules)   (ML Anomaly)      (Behavioral)   
+  
          ↓                   ↓                   ↓
     Hard Block?         Anomaly Score?      Reconstruction
                                            Error High?
          ↓                   ↓                   ↓
-         └────────────────┬──┴───────────────────┘
+         
                           ↓
                    Final Decision
                    (Combined Result)
@@ -219,11 +217,11 @@ Threshold = mean_error + (3 × std_error)
 ### New Structure:
 ```
 backend/model/
-├── isolation_forest.pkl      # Trained IF model
-├── isolation_forest_scaler.pkl # IF feature scaler
-├── autoencoder.h5           # Trained AE model
-├── autoencoder_scaler.pkl   # AE feature scaler
-└── autoencoder_threshold.json # AE threshold config
+ isolation_forest.pkl      # Trained IF model
+ isolation_forest_scaler.pkl # IF feature scaler
+ autoencoder.h5           # Trained AE model
+ autoencoder_scaler.pkl   # AE feature scaler
+ autoencoder_threshold.json # AE threshold config
 ```
 
 ### Benefits:

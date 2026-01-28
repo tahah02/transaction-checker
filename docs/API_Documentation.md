@@ -30,8 +30,7 @@ class TransactionRequest(BaseModel):
     transfer_type: str = Field(pattern="^[SILQO]$")
     datetime: datetime
     bank_country: Optional[str] = "UAE"
-```
-**Purpose**: Validates incoming transaction data
+``` **Purpose**: Validates incoming transaction data
 - `customer_id`: Unique customer identifier
 - `from_account_no`: Source account number
 - `to_account_no`: Destination account number
@@ -50,8 +49,7 @@ class TransactionResponse(BaseModel):
     individual_scores: dict
     transaction_id: str
     processing_time_ms: int
-```
-**Purpose**: Structured response format
+``` **Purpose**: Structured response format
 - `decision`: "APPROVED" or "REQUIRES_USER_APPROVAL"
 - `risk_score`: Numerical risk assessment (0.0 to 1.0)
 - `confidence_level`: System confidence in decision
@@ -68,8 +66,7 @@ class BatchRequest(BaseModel):
 class BatchResponse(BaseModel):
     results: List[TransactionResponse]
     summary: dict
-```
-**Purpose**: Handle multiple transactions in single request
+``` **Purpose**: Handle multiple transactions in single request
 - Limited to 100 transactions per batch
 - Returns individual results plus summary statistics
 
@@ -78,10 +75,7 @@ class BatchResponse(BaseModel):
 #### Purpose
 Replaces Streamlit's session state with persistent file-based storage for user statistics and velocity tracking.
 
-#### Key Methods
-
-**`__init__(self)`**
-```python
+#### Key Methods **`__init__(self)`** ```python
 def __init__(self):
     self.stats_file = "data/user_stats.json"
     self.velocity_file = "data/velocity_counters.json"
@@ -89,10 +83,7 @@ def __init__(self):
     self.velocity = self.load_velocity()
 ```
 - Initializes file paths for persistent storage
-- Loads existing data on startup
-
-**`load_stats(self)` & `load_velocity(self)`**
-```python
+- Loads existing data on startup **`load_stats(self)` & `load_velocity(self)`** ```python
 def load_stats(self):
     if os.path.exists(self.stats_file):
         with open(self.stats_file, 'r') as f:
@@ -101,10 +92,7 @@ def load_stats(self):
 ```
 - Loads user statistics from JSON files
 - Returns empty dict if files don't exist
-- Handles file I/O errors gracefully
-
-**`get_user_stats(self, customer_id: str, account_no: str)`**
-```python
+- Handles file I/O errors gracefully **`get_user_stats(self, customer_id: str, account_no: str)`** ```python
 def get_user_stats(self, customer_id: str, account_no: str):
     key = f"{customer_id}_{account_no}"
     if key not in self.stats:
@@ -120,10 +108,7 @@ def get_user_stats(self, customer_id: str, account_no: str):
 ```
 - Creates composite key from customer_id and account_no
 - Initializes default statistics for new customers
-- Returns existing statistics for known customers
-
-**`get_velocity_metrics(self, customer_id: str, account_no: str)`**
-```python
+- Returns existing statistics for known customers **`get_velocity_metrics(self, customer_id: str, account_no: str)`** ```python
 def get_velocity_metrics(self, customer_id: str, account_no: str):
     key = f"{customer_id}_{account_no}"
     now = datetime.now()
@@ -147,10 +132,7 @@ def get_velocity_metrics(self, customer_id: str, account_no: str):
 - Filters transaction history to last hour
 - Calculates velocity metrics for 10-minute and 1-hour windows
 - Computes time since last transaction
-- Returns metrics used by fraud detection engine
-
-**`record_transaction(self, customer_id: str, account_no: str, amount: float)`**
-```python
+- Returns metrics used by fraud detection engine **`record_transaction(self, customer_id: str, account_no: str, amount: float)`** ```python
 def record_transaction(self, customer_id: str, account_no: str, amount: float):
     key = f"{customer_id}_{account_no}"
     now = datetime.now()
@@ -195,8 +177,7 @@ def health_check():
             "autoencoder": "loaded" if autoencoder else "unavailable"
         }
     }
-```
-**Purpose**: System monitoring and diagnostics
+``` **Purpose**: System monitoring and diagnostics
 - Returns current system status
 - Indicates model availability
 - Provides timestamp for monitoring
@@ -205,17 +186,14 @@ def health_check():
 ```python
 @app.post("/api/analyze-transaction", response_model=TransactionResponse)
 def analyze_transaction(request: TransactionRequest):
-```
-**Flow**:
+``` **Flow**:
 1. **Timing**: Records start time for performance measurement
 2. **Data Retrieval**: Gets user statistics and velocity metrics
 3. **Transaction Preparation**: Formats data for fraud detection engine
 4. **Fraud Analysis**: Calls existing `make_decision` function
 5. **Decision Mapping**: Converts internal result to API response format
 6. **State Update**: Records transaction if approved
-7. **Response Generation**: Creates structured response with timing
-
-**Key Logic**:
+7. **Response Generation**: Creates structured response with timing **Key Logic**:
 ```python
 txn = {
     'amount': request.transaction_amount,
@@ -237,15 +215,12 @@ decision = "REQUIRES_USER_APPROVAL" if result['is_fraud'] else "APPROVED"
 ```python
 @app.post("/api/analyze-batch", response_model=BatchResponse)
 def analyze_batch(request: BatchRequest):
-```
-**Flow**:
+``` **Flow**:
 1. **Initialization**: Creates result arrays and counters
 2. **Individual Processing**: Calls `analyze_transaction` for each item
 3. **Error Handling**: Catches and handles individual transaction failures
 4. **Summary Generation**: Aggregates results and statistics
-5. **Response Assembly**: Returns individual results plus batch summary
-
-**Error Handling**:
+5. **Response Assembly**: Returns individual results plus batch summary **Error Handling**:
 ```python
 try:
     result = analyze_transaction(txn)
@@ -278,28 +253,23 @@ if __name__ == "__main__":
 
 ## Key Design Decisions
 
-### 1. **Minimal Code Changes**
-- Reuses existing `make_decision` function from Streamlit app
+### 1. **Minimal Code Changes** - Reuses existing `make_decision` function from Streamlit app
 - Maintains same fraud detection logic and business rules
 - Only changes data input/output format
 
-### 2. **File-Based Persistence**
-- Replaces browser session state with JSON files
+### 2. **File-Based Persistence** - Replaces browser session state with JSON files
 - Enables stateful behavior across API calls
 - Simple deployment without database requirements
 
-### 3. **Pydantic Validation**
-- Automatic request validation and error responses
+### 3. **Pydantic Validation** - Automatic request validation and error responses
 - Type safety and documentation generation
 - Clear error messages for invalid inputs
 
-### 4. **Performance Optimization**
-- Models loaded once at startup
+### 4. **Performance Optimization** - Models loaded once at startup
 - In-memory statistics with periodic persistence
 - Efficient velocity calculations with time filtering
 
-### 5. **Error Resilience**
-- Graceful handling of model failures
+### 5. **Error Resilience** - Graceful handling of model failures
 - Default to requiring approval when uncertain
 - Individual transaction isolation in batch processing
 

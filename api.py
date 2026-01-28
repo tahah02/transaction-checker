@@ -60,8 +60,7 @@ def health_check():
             "autoencoder": "loaded" if autoencoder else "unavailable"
         },
         "database": {
-            "status": db_status,
-            **db_info
+            "status": db_status, **db_info
         }
     }
 
@@ -112,7 +111,7 @@ def analyze_transaction(request: TransactionRequest):
     try:
         is_new_ben = db.check_new_beneficiary(request.customer_id, request.to_account_no)
     except:
-        is_new_ben = 1
+        is_new_ben = 0  # Assume existing beneficiary if DB check fails
     
     txn = {
         "amount": request.transaction_amount,
