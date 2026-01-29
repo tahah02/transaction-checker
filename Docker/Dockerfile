@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir -r requirements_api.txt && \
     pip install --no-cache-dir pymssql==2.2.11
 
 # Copy application code (excluding models - they will be mounted)
-COPY api.py .
+COPY api/ ./api/
 COPY backend/ ./backend/
 
 # Note: Models will be mounted from host via volume
