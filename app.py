@@ -191,9 +191,10 @@ def dashboard(df, model, features, scaler=None, autoencoder=None):
     
     if len(account_data) > 0:
         amt_col = 'AmountInAed'
+        account_data[amt_col] = account_data[amt_col].astype(float)
         avg = account_data[amt_col].mean()
         max_amt = account_data[amt_col].max()
-        std = account_data[amt_col].std() if len(account_data) > 1 else 0
+        std = account_data[amt_col].std() if len(account_data) > 1 else 0.0
         
         st.sidebar.markdown(f"**Average Transaction:** AED {avg:,.2f}")
         st.sidebar.markdown(f"**Max Transaction:** AED {max_amt:,.2f}")

@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from datetime import datetime
-from typing import List, Optional
+from datetime import datetime, timedelta
+from typing import List, Optional, Dict, Any
 import pandas as pd
 import numpy as np
 import uuid
@@ -105,30 +105,62 @@ def update_transaction_status(transaction_id: str, action: str, actioned_by: str
             logger.error(f"Transaction file not found: {file_path}")
             return False
         
-        # Read CSV
         df = pd.read_csv(file_path)
-        
-        # Find transaction
         mask = df['Transaction_ID'] == transaction_id
+        
         if not mask.any():
             logger.error(f"Transaction not found: {transaction_id}")
             return False
         
-        # Update status
         df.loc[mask, 'User_Action'] = action
         df.loc[mask, 'Actioned_By'] = actioned_by
         df.loc[mask, 'Action_Timestamp'] = datetime.now().isoformat()
         df.loc[mask, 'Action_Comments'] = comments
         
-        # Save back to CSV
         df.to_csv(file_path, index=False)
-        
         logger.info(f"Transaction {transaction_id} updated to {action} by {actioned_by}")
         return True
         
     except Exception as e:
         logger.error(f"Failed to update transaction status: {e}")
         return False
+
+
+def get_velocity_from_csv(customer_id: str, account_no: str) -> Dict[str, int]:
+    try:
+        file_path = 'data/api_transactions.csv'
+        if not os.path.isfile(file_path):
+            return {"txn_count_10min": 0, "txn_count_1hour": 0}
+        
+        df = pd.read_csv(file_path)
+        
+        customer_id_str = str(customer_id)
+        account_no_str = str(account_no).lstrip('0')
+        
+        customer_match = df['Customer_ID'].astype(str) == customer_id_str
+        account_match = df['From_Account'].astype(str).str.lstrip('0') == account_no_str
+        
+        df = df[customer_match & account_match]
+        
+        if len(df) == 0:
+            return {"txn_count_10min": 0, "txn_count_1hour": 0}
+        
+        df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+        now = datetime.now()
+        
+        ten_min_ago = now - timedelta(minutes=10)
+        txn_10min = len(df[df['Timestamp'] >= ten_min_ago])
+        
+        one_hour_ago = now - timedelta(hours=1)
+        txn_1hour = len(df[df['Timestamp'] >= one_hour_ago])
+        
+        return {
+            "txn_count_10min": txn_10min,
+            "txn_count_1hour": txn_1hour
+        }
+    except Exception as e:
+        logger.error(f"Error getting velocity from CSV: {e}")
+        return {"txn_count_10min": 0, "txn_count_1hour": 0}
 
 
 @app.get("/api/health")
@@ -211,13 +243,15 @@ def analyze_transaction(request: TransactionRequest):
             detail="Service temporarily unavailable - unable to verify beneficiary. Please try again."
         )
     
+    csv_velocity = get_velocity_from_csv(request.customer_id, request.from_account_no)
+    
     txn = {
         "amount": request.transaction_amount,
         "transfer_type": request.transfer_type,
         "bank_country": request.bank_country,
         "txn_count_30s": 1,
-        "txn_count_10min": user_stats.get("txn_count_10min", 0) + 1,
-        "txn_count_1hour": user_stats.get("txn_count_1hour", 0) + 1,
+        "txn_count_10min": csv_velocity["txn_count_10min"] + 1,
+        "txn_count_1hour": csv_velocity["txn_count_1hour"] + 1,
         "time_since_last_txn": user_stats.get("time_since_last_txn", 3600),
         "is_new_beneficiary": is_new_ben
     }
@@ -318,21 +352,13 @@ def get_pending_transactions():
         file_path = 'data/api_transactions.csv'
         
         if not os.path.isfile(file_path):
-            return {
-                "count": 0,
-                "transactions": []
-            }
+            return {"count": 0, "transactions": []}
         
-        # Read CSV
         df = pd.read_csv(file_path)
-        
-        # Filter pending transactions
         pending_df = df[df['User_Action'] == 'PENDING']
         
-        # Convert to list of dicts
         transactions = []
         for _, row in pending_df.iterrows():
-            # Safely convert all numeric values
             try:
                 amount = float(row['Amount'])
                 if pd.isna(amount) or np.isinf(amount):
@@ -360,10 +386,7 @@ def get_pending_transactions():
                 "timestamp": str(row['Timestamp'])
             })
         
-        return {
-            "count": len(transactions),
-            "transactions": transactions
-        }
+        return {"count": len(transactions), "transactions": transactions}
         
     except Exception as e:
         logger.error(f"Error fetching pending transactions: {e}")
