@@ -131,7 +131,9 @@ def analyze_transaction(request: TransactionRequest):
     return TransactionResponse(
         decision=decision,
         risk_score=result.get('risk_score', 0.0),
-        confidence_level=0.85,
+        risk_level=result.get('risk_level', 'SAFE'),
+        confidence_level=result.get('confidence_level', 0.0),
+        model_agreement=result.get('model_agreement', 0.0),
         reasons=result.get('reasons', []),
         individual_scores={
             "rule_engine": {"violated": result['is_fraud'], "threshold": result.get('threshold', 0)},

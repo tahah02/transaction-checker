@@ -1,12 +1,55 @@
+import json
 import numpy as np
 from backend.rule_engine import check_rule_violation
 
 
+def load_risk_config():
+    with open('backend/config/risk_thresholds.json', 'r') as f:
+        return json.load(f)
+
+
+def calculate_risk_level(risk_score, config):
+    thresholds = config['isolation_forest']
+    if risk_score >= thresholds['high_risk_threshold']:
+        return config['risk_levels']['high']
+    elif risk_score >= thresholds['medium_risk_threshold']:
+        return config['risk_levels']['medium']
+    elif risk_score >= thresholds['low_risk_threshold']:
+        return config['risk_levels']['low']
+    else:
+        return config['risk_levels']['safe']
+
+
+def calculate_confidence(rule_violated, ml_flag, ae_flag, risk_score, config):
+    flags = [rule_violated, ml_flag, ae_flag]
+    fraud_count = sum(flags)
+    conf_config = config['confidence_calculation']
+    
+    if fraud_count == 3:
+        confidence = conf_config['all_models_agree']
+    elif fraud_count == 2:
+        confidence = conf_config['two_models_agree']
+    elif fraud_count == 1:
+        confidence = conf_config['one_model_agrees']
+    else:
+        confidence = conf_config['all_models_agree']
+    
+    if ml_flag and risk_score > 0.8:
+        confidence += conf_config['high_risk_boost']
+    
+    return round(min(confidence, 1.0), 2)
+
+
 def make_decision(txn, user_stats, model, features, autoencoder=None):
+    config = load_risk_config()
+    
     result = {
         "is_fraud": False,
         "reasons": [],
         "risk_score": 0.0,
+        "risk_level": "SAFE",
+        "confidence_level": 0.0,
+        "model_agreement": 0.0,
         "threshold": 0.0,
         "ml_flag": False,
         "ae_flag": False,
@@ -106,5 +149,15 @@ def make_decision(txn, user_stats, model, features, autoencoder=None):
                 result["ae_flag"] = True
                 result["is_fraud"] = True
                 result["reasons"].append(ae_result['reason'])
+
+    result["risk_level"] = calculate_risk_level(result["risk_score"], config)
+    result["confidence_level"] = calculate_confidence(
+        violated, 
+        result["ml_flag"], 
+        result["ae_flag"], 
+        result["risk_score"], 
+        config
+    )
+    result["model_agreement"] = round(sum([violated, result["ml_flag"], result["ae_flag"]]) / 3, 2)
 
     return result

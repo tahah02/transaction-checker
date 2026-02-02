@@ -1,0 +1,19 @@
+{
+  "isolation_forest": {
+    "high_risk_threshold": 0.7,
+    "medium_risk_threshold": 0.5,
+    "low_risk_threshold": 0.3
+  },
+  "confidence_calculation": {
+    "all_models_agree": 0.95,
+    "two_models_agree": 0.80,
+    "one_model_agrees": 0.60,
+    "high_risk_boost": 0.03
+  },
+  "risk_levels": {
+    "safe": "SAFE",
+    "low": "LOW",
+    "medium": "MEDIUM",
+    "high": "HIGH"
+  }
+}
