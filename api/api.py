@@ -8,7 +8,7 @@ from backend.autoencoder import AutoencoderInference
 from backend.db_service import get_db_service
 from api.models import TransactionRequest, TransactionResponse, ApprovalRequest, RejectionRequest, ActionResponse
 from api.services import get_velocity_from_csv, get_pending_transactions
-from api.helpers import save_transaction_to_file, update_transaction_status
+from api.helpers import save_transaction_to_file, update_transaction_status, validate_transfer_request
 
 logger = logging.getLogger(__name__)
 app = FastAPI(title="Banking Fraud Detection API", version="1.0.0")
@@ -50,6 +50,13 @@ def health_check():
 @app.post("/api/analyze-transaction", response_model=TransactionResponse)
 def analyze_transaction(request: TransactionRequest):
     start_time = datetime.now()
+    
+    # Set datetime if not provided
+    if request.datetime is None:
+        request.datetime = datetime.now()
+    
+    # Validate request
+    validate_transfer_request(request)
     
     try:
         db_stats = db.get_all_user_stats(request.customer_id, request.from_account_no)
@@ -120,12 +127,21 @@ def analyze_transaction(request: TransactionRequest):
     processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
     transaction_id = f"txn_{uuid.uuid4().hex[:8]}"
     
+    result['processing_time_ms'] = processing_time
+    
+    result['individual_scores'] = {
+        "rule_engine": {"violated": result['is_fraud'], "threshold": result.get('threshold', 0)},
+        "isolation_forest": {"anomaly_score": result.get('risk_score', 0), "is_anomaly": result.get('ml_flag', False)},
+        "autoencoder": {"reconstruction_error": result.get('ae_reconstruction_error'), "is_anomaly": result.get('ae_flag', False)}
+    }
+    
     save_transaction_to_file(
         request=request,
         decision=decision,
         risk_score=result.get('risk_score', 0.0),
         reasons=result.get('reasons', []),
-        transaction_id=transaction_id
+        transaction_id=transaction_id,
+        result=result
     )
     
     return TransactionResponse(
@@ -135,11 +151,7 @@ def analyze_transaction(request: TransactionRequest):
         confidence_level=result.get('confidence_level', 0.0),
         model_agreement=result.get('model_agreement', 0.0),
         reasons=result.get('reasons', []),
-        individual_scores={
-            "rule_engine": {"violated": result['is_fraud'], "threshold": result.get('threshold', 0)},
-            "isolation_forest": {"anomaly_score": result.get('risk_score', 0), "is_anomaly": result.get('ml_flag', False)},
-            "autoencoder": {"reconstruction_error": result.get('ae_reconstruction_error'), "is_anomaly": result.get('ae_flag', False)}
-        },
+        individual_scores=result['individual_scores'],
         transaction_id=transaction_id,
         processing_time_ms=processing_time
     )

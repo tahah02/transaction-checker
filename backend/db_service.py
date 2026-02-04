@@ -120,15 +120,38 @@ class DatabaseService:
             else:
                 cursor.execute(query)
             
-            # Fetch results and column names
             columns = [desc[0] for desc in cursor.description]
             rows = cursor.fetchall()
             cursor.close()
             
-            # Convert to DataFrame
             return pd.DataFrame.from_records(rows, columns=columns)
         except Exception as e:
             logger.error(f"Query error: {e}")
+            raise
+    
+    def execute_non_query(self, query: str, params: Optional[List] = None) -> int:
+        try:
+            if not self.is_connected():
+                if not self.connect():
+                    raise Exception("Cannot connect to database")
+            
+            cursor = self.connection.cursor()
+            
+            if params:
+                params_tuple = tuple(params) if isinstance(params, list) else params
+                cursor.execute(query, params_tuple)
+            else:
+                cursor.execute(query)
+            
+            self.connection.commit()
+            rows_affected = cursor.rowcount
+            cursor.close()
+            
+            return rows_affected
+        except Exception as e:
+            logger.error(f"Non-query error: {e}")
+            if self.connection:
+                self.connection.rollback()
             raise
     
     def get_all_customers(self) -> List[str]:

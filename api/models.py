@@ -6,14 +6,21 @@ from typing import List, Optional
 class TransactionRequest(BaseModel):
     customer_id: str
     from_account_no: str
+    from_account_currency: str
     to_account_no: str
     transaction_amount: float = Field(gt=0)
+    transfer_currency: str
     transfer_type: str = Field(pattern="^[SILQO]$")
-    datetime: datetime
+    charges_type: Optional[str] = ""
+    swift: Optional[str] = ""
+    check_constraint: bool = True
+    datetime: Optional[datetime] = None
     bank_country: Optional[str] = "UAE"
 
 
 class TransactionResponse(BaseModel):
+    model_config = {"protected_namespaces": ()}
+    
     decision: str
     risk_score: float
     risk_level: str

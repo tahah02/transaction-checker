@@ -10,54 +10,70 @@ logger = logging.getLogger(__name__)
 
 
 def get_velocity_from_csv(customer_id: str, account_no: str) -> Dict[str, int]:
+    logger.info(f"VELOCITY CHECK CALLED for {customer_id}/{account_no}")
+    from backend.db_service import get_db_service
+    db = get_db_service()
+    
     try:
-        file_path = 'data/api_transactions.csv'
-        if not os.path.isfile(file_path):
+        if not db.connect():
+            logger.error("Database connection failed for velocity check")
             return {"txn_count_10min": 0, "txn_count_1hour": 0}
         
-        df = pd.read_csv(file_path)
+        query_10min = """
+            SELECT COUNT(*) as count
+            FROM APITransactionLogs
+            WHERE CustomerId = %s 
+              AND FromAccountNo = %s
+              AND CreatedAt >= DATEADD(MINUTE, -10, GETDATE())
+        """
         
-        customer_id_str = str(customer_id)
-        account_no_str = str(account_no).lstrip('0')
+        query_1hour = """
+            SELECT COUNT(*) as count
+            FROM APITransactionLogs
+            WHERE CustomerId = %s 
+              AND FromAccountNo = %s
+              AND CreatedAt >= DATEADD(HOUR, -1, GETDATE())
+        """
         
-        customer_match = df['Customer_ID'].astype(str) == customer_id_str
-        account_match = df['From_Account'].astype(str).str.lstrip('0') == account_no_str
+        df_10min = db.execute_query(query_10min, [customer_id, account_no])
+        df_1hour = db.execute_query(query_1hour, [customer_id, account_no])
         
-        df = df[customer_match & account_match]
+        txn_10min = int(df_10min['count'].iloc[0]) if len(df_10min) > 0 else 0
+        txn_1hour = int(df_1hour['count'].iloc[0]) if len(df_1hour) > 0 else 0
         
-        if len(df) == 0:
-            return {"txn_count_10min": 0, "txn_count_1hour": 0}
-        
-        df['Timestamp'] = pd.to_datetime(df['Timestamp'])
-        now = datetime.now()
-        
-        ten_min_ago = now - timedelta(minutes=10)
-        txn_10min = len(df[df['Timestamp'] >= ten_min_ago])
-        
-        one_hour_ago = now - timedelta(hours=1)
-        txn_1hour = len(df[df['Timestamp'] >= one_hour_ago])
+        logger.info(f"Velocity: {customer_id}/{account_no} -> 10min={txn_10min}, 1hour={txn_1hour}")
         
         return {
             "txn_count_10min": txn_10min,
             "txn_count_1hour": txn_1hour
         }
     except Exception as e:
-        logger.error(f"Error getting velocity from CSV: {e}")
+        logger.error(f"Error getting velocity from database: {e}")
         return {"txn_count_10min": 0, "txn_count_1hour": 0}
+    finally:
+        db.disconnect()
 
 
 def get_pending_transactions():
+    from backend.db_service import get_db_service
+    db = get_db_service()
+    
     try:
-        file_path = 'data/api_transactions.csv'
+        if not db.connect():
+            raise HTTPException(status_code=503, detail="Database connection failed")
         
-        if not os.path.isfile(file_path):
-            return {"count": 0, "transactions": []}
+        query = """
+            SELECT TransactionId, CustomerId, FromAccountNo, ToAccountNo,
+                   Amount, TransferType, Decision, RiskScore, Reasons, CreatedAt
+            FROM APITransactionLogs
+            WHERE UserAction = 'PENDING'
+            ORDER BY CreatedAt DESC
+        """
         
-        df = pd.read_csv(file_path)
-        pending_df = df[df['User_Action'] == 'PENDING']
+        df = db.execute_query(query)
         
         transactions = []
-        for _, row in pending_df.iterrows():
+        for _, row in df.iterrows():
             try:
                 amount = float(row['Amount'])
                 if pd.isna(amount) or np.isinf(amount):
@@ -66,23 +82,23 @@ def get_pending_transactions():
                 amount = 0.0
             
             try:
-                risk_score = float(row['Risk_Score'])
+                risk_score = float(row['RiskScore'])
                 if pd.isna(risk_score) or np.isinf(risk_score):
                     risk_score = 0.0
             except:
                 risk_score = 0.0
             
             transactions.append({
-                "transaction_id": str(row['Transaction_ID']),
-                "customer_id": str(row['Customer_ID']),
-                "from_account": str(row['From_Account']),
-                "to_account": str(row['To_Account']),
+                "transaction_id": str(row['TransactionId']),
+                "customer_id": str(row['CustomerId']),
+                "from_account": str(row['FromAccountNo']),
+                "to_account": str(row['ToAccountNo']),
                 "amount": amount,
-                "transfer_type": str(row['Transfer_Type']),
+                "transfer_type": str(row['TransferType']),
                 "decision": str(row['Decision']),
                 "risk_score": risk_score,
                 "reasons": str(row['Reasons']),
-                "timestamp": str(row['Timestamp'])
+                "timestamp": str(row['CreatedAt'])
             })
         
         return {"count": len(transactions), "transactions": transactions}
@@ -90,3 +106,5 @@ def get_pending_transactions():
     except Exception as e:
         logger.error(f"Error fetching pending transactions: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        db.disconnect()

@@ -20,14 +20,10 @@ services:
       - PYTHONUNBUFFERED=1
     
     volumes:
-      # Mount models from host (writable for training)
       - ../backend/model:/app/backend/model
-      
-      # Mount data directory for API transactions
       - ../data:/app/data
-      
-      # Optional: Mount logs directory
-      # - ./logs:/app/logs
+      - ../api:/app/api
+      - ../backend:/app/backend
     
     restart: unless-stopped
     
