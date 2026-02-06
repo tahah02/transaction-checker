@@ -124,7 +124,18 @@ class DatabaseService:
             rows = cursor.fetchall()
             cursor.close()
             
-            return pd.DataFrame.from_records(rows, columns=columns)
+            df = pd.DataFrame.from_records(rows, columns=columns)
+            
+            # Convert Decimal columns to float to avoid type mixing issues
+            for col in df.columns:
+                if df[col].dtype == 'object':
+                    try:
+                        # Try to convert to numeric (handles Decimal, float, int)
+                        df[col] = pd.to_numeric(df[col], errors='ignore')
+                    except:
+                        pass
+            
+            return df
         except Exception as e:
             logger.error(f"Query error: {e}")
             raise
@@ -261,14 +272,23 @@ class DatabaseService:
             logger.error(f"Error getting monthly spending: {e}")
             return 0.0
     
-    def check_new_beneficiary(self, customer_id: str, recipient_account: str) -> int:
+    def check_new_beneficiary(self, customer_id: str, recipient_account: str, transfer_type: str = None) -> int:
         try:
             if DRIVER_TYPE == 'pymssql':
-                query = "SELECT COUNT(*) as count FROM TransactionHistoryLogs WHERE CustomerId = %s AND ReceipentAccount = %s"
+                if transfer_type:
+                    query = "SELECT COUNT(*) as count FROM TransactionHistoryLogs WHERE CustomerId = %s AND ReceipentAccount = %s AND TransferType = %s"
+                    df = self.execute_query(query, [customer_id, recipient_account, transfer_type])
+                else:
+                    query = "SELECT COUNT(*) as count FROM TransactionHistoryLogs WHERE CustomerId = %s AND ReceipentAccount = %s"
+                    df = self.execute_query(query, [customer_id, recipient_account])
             else:
-                query = "SELECT COUNT(*) as count FROM TransactionHistoryLogs WHERE CustomerId = ? AND ReceipentAccount = ?"
+                if transfer_type:
+                    query = "SELECT COUNT(*) as count FROM TransactionHistoryLogs WHERE CustomerId = ? AND ReceipentAccount = ? AND TransferType = ?"
+                    df = self.execute_query(query, [customer_id, recipient_account, transfer_type])
+                else:
+                    query = "SELECT COUNT(*) as count FROM TransactionHistoryLogs WHERE CustomerId = ? AND ReceipentAccount = ?"
+                    df = self.execute_query(query, [customer_id, recipient_account])
             
-            df = self.execute_query(query, [customer_id, recipient_account])
             return 0 if df['count'].iloc[0] > 0 else 1
         except Exception as e:
             logger.error(f"Error checking beneficiary: {e}")
@@ -304,7 +324,7 @@ class DatabaseService:
             weekly_total = float(df['weekly_total'].iloc[0] or 0.0)
             weekly_txn_count = int(df['weekly_txn_count'].iloc[0] or 0)
             weekly_avg = float(df['weekly_avg_amount'].iloc[0] or 0.0)
-            weekly_std = float(df['weekly_std'].iloc[0] or 0.0)
+            weekly_std = float(df['weekly_std'].iloc[0] or 0.0) if df['weekly_std'].iloc[0] is not None else 0.0
             
             weekly_deviation = 0.0
             if weekly_avg > 0:
@@ -323,7 +343,7 @@ class DatabaseService:
                         AND CreateDate >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))
                     """
                 df_dev = self.execute_query(query_deviation, [weekly_avg, customer_id, account_no, padded_account])
-                weekly_deviation = float(df_dev['avg_deviation'].iloc[0] or 0.0)
+                weekly_deviation = float(df_dev['avg_deviation'].iloc[0] or 0.0) if df_dev['avg_deviation'].iloc[0] is not None else 0.0
             
             return {
                 "user_weekly_total": weekly_total,
@@ -390,7 +410,7 @@ class DatabaseService:
                         AND YEAR(CreateDate) = YEAR(GETDATE())
                     """
                 df_dev = self.execute_query(query_deviation, [monthly_avg, customer_id, account_no, padded_account])
-                monthly_deviation = float(df_dev['avg_deviation'].iloc[0] or 0.0)
+                monthly_deviation = float(df_dev['avg_deviation'].iloc[0] or 0.0) if df_dev['avg_deviation'].iloc[0] is not None else 0.0
             
             return {
                 "current_month_spending": monthly_total,

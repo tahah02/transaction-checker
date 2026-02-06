@@ -98,16 +98,47 @@ class AutoencoderInference:
             return None
 
         try:
-            x = np.array([[features.get(f, 0) for f in MODEL_FEATURES]], dtype=np.float32)
-            x = self.scaler.transform(x)
-
-            error = float(self.model.compute_reconstruction_error(x)[0])
-            if not np.isfinite(error):
+            # Build feature array with proper default handling
+            feature_values = []
+            for f in MODEL_FEATURES:
+                val = features.get(f, 0.0)
+                # Replace None with 0.0
+                if val is None or (isinstance(val, float) and not np.isfinite(val)):
+                    val = 0.0
+                feature_values.append(float(val))
+            
+            x = np.array([feature_values], dtype=np.float32)
+            
+            # Check for NaN/Inf in input
+            if not np.all(np.isfinite(x)):
+                logger.error(f"Invalid input features: {x}")
                 return {
                     'reconstruction_error': 999.0,
                     'threshold': self.threshold,
                     'is_anomaly': True,
-                    'reason': 'Invalid reconstruction error'
+                    'reason': 'Invalid input features (NaN/Inf)'
+                }
+            
+            x = self.scaler.transform(x)
+            
+            # Check after scaling
+            if not np.all(np.isfinite(x)):
+                logger.error(f"Invalid scaled features: {x}")
+                return {
+                    'reconstruction_error': 999.0,
+                    'threshold': self.threshold,
+                    'is_anomaly': True,
+                    'reason': 'Invalid scaled features (NaN/Inf)'
+                }
+
+            error = float(self.model.compute_reconstruction_error(x)[0])
+            if not np.isfinite(error):
+                logger.error(f"Invalid reconstruction error: {error}")
+                return {
+                    'reconstruction_error': 999.0,
+                    'threshold': self.threshold,
+                    'is_anomaly': True,
+                    'reason': 'Invalid reconstruction error (NaN/Inf)'
                 }
 
             is_anomaly = error > self.threshold
