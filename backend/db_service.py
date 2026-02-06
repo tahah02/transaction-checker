@@ -274,21 +274,16 @@ class DatabaseService:
     
     def check_new_beneficiary(self, customer_id: str, recipient_account: str, transfer_type: str = None) -> int:
         try:
-            if DRIVER_TYPE == 'pymssql':
-                if transfer_type:
-                    query = "SELECT COUNT(*) as count FROM TransactionHistoryLogs WHERE CustomerId = %s AND ReceipentAccount = %s AND TransferType = %s"
-                    df = self.execute_query(query, [customer_id, recipient_account, transfer_type])
-                else:
-                    query = "SELECT COUNT(*) as count FROM TransactionHistoryLogs WHERE CustomerId = %s AND ReceipentAccount = %s"
-                    df = self.execute_query(query, [customer_id, recipient_account])
-            else:
-                if transfer_type:
-                    query = "SELECT COUNT(*) as count FROM TransactionHistoryLogs WHERE CustomerId = ? AND ReceipentAccount = ? AND TransferType = ?"
-                    df = self.execute_query(query, [customer_id, recipient_account, transfer_type])
-                else:
-                    query = "SELECT COUNT(*) as count FROM TransactionHistoryLogs WHERE CustomerId = ? AND ReceipentAccount = ?"
-                    df = self.execute_query(query, [customer_id, recipient_account])
+            placeholder = '%s' if DRIVER_TYPE == 'pymssql' else '?'
             
+            if transfer_type:
+                query = f"SELECT COUNT(*) as count FROM TransactionHistoryLogs WHERE CustomerId = {placeholder} AND ReceipentAccount = {placeholder} AND TransferType = {placeholder}"
+                params = [customer_id, recipient_account, transfer_type]
+            else:
+                query = f"SELECT COUNT(*) as count FROM TransactionHistoryLogs WHERE CustomerId = {placeholder} AND ReceipentAccount = {placeholder}"
+                params = [customer_id, recipient_account]
+            
+            df = self.execute_query(query, params)
             return 0 if df['count'].iloc[0] > 0 else 1
         except Exception as e:
             logger.error(f"Error checking beneficiary: {e}")

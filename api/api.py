@@ -99,7 +99,7 @@ def analyze_transaction(request: TransactionRequest):
         }
     
     try:
-        is_new_ben = db.check_new_beneficiary(request.customer_id, request.to_account_no)
+        is_new_ben = db.check_new_beneficiary(request.customer_id, request.to_account_no, request.transfer_type)
     except Exception as e:
         logger.error(f"Beneficiary check failed - database unavailable: {e}")
         raise HTTPException(

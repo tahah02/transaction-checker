@@ -308,7 +308,7 @@ def dashboard(df, model, features, scaler=None, autoencoder=None):
 
         # Check if beneficiary is new
         try:
-            is_new_ben = db.check_new_beneficiary(cid, recipient_account.strip())
+            is_new_ben = db.check_new_beneficiary(cid, recipient_account.strip(), t_type)
         except Exception as e:
             st.warning(f"Could not verify beneficiary status: {e}")
             is_new_ben = 0  # Assume existing beneficiary if check fails
