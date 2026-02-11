@@ -16,6 +16,10 @@ services:
       - DB_USERNAME=dbuser
       - DB_PASSWORD=Codebase202212?!
       
+      # API Authentication
+      - API_USERNAME=FDS
+      - API_PASSWORD=12345
+      
       # Optional: Python environment
       - PYTHONUNBUFFERED=1
     

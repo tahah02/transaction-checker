@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Depends
 from datetime import datetime
 import uuid
 import logging
@@ -8,7 +8,7 @@ from backend.autoencoder import AutoencoderInference
 from backend.db_service import get_db_service
 from api.models import TransactionRequest, TransactionResponse, ApprovalRequest, RejectionRequest, ActionResponse
 from api.services import get_velocity_from_csv, get_pending_transactions
-from api.helpers import save_transaction_to_file, update_transaction_status, validate_transfer_request
+from api.helpers import save_transaction_to_file, update_transaction_status, validate_transfer_request, verify_basic_auth
 
 logger = logging.getLogger(__name__)
 app = FastAPI(title="Banking Fraud Detection API", version="1.0.0")
@@ -17,6 +17,8 @@ db = get_db_service()
 model, features, scaler = load_model()
 autoencoder = AutoencoderInference()
 autoencoder.load()
+
+
 
 
 @app.get("/api/health")
@@ -48,7 +50,8 @@ def health_check():
 
 
 @app.post("/api/analyze-transaction", response_model=TransactionResponse)
-def analyze_transaction(request: TransactionRequest):
+def analyze_transaction(request: TransactionRequest, req: Request):
+    verify_basic_auth(req)
     start_time = datetime.now()
     
     if request.datetime is None:
@@ -141,7 +144,8 @@ def analyze_transaction(request: TransactionRequest):
 
 
 @app.post("/api/transaction/approve", response_model=ActionResponse)
-def approve_transaction(request: ApprovalRequest):
+def approve_transaction(request: ApprovalRequest, req: Request):
+    verify_basic_auth(req)
     try:
         success = update_transaction_status(
             transaction_id=request.transaction_id,
@@ -171,7 +175,8 @@ def approve_transaction(request: ApprovalRequest):
 
 
 @app.post("/api/transaction/reject", response_model=ActionResponse)
-def reject_transaction(request: RejectionRequest):
+def reject_transaction(request: RejectionRequest, req: Request):
+    verify_basic_auth(req)
     try:
         success = update_transaction_status(
             transaction_id=request.transaction_id,
@@ -201,13 +206,15 @@ def reject_transaction(request: RejectionRequest):
 
 
 @app.get("/api/transactions/pending")
-def list_pending_transactions():
+def list_pending_transactions(req: Request):
+    verify_basic_auth(req)
     return get_pending_transactions()
 
 
 # Feature Configuration Endpoints
 @app.get("/api/features")
-def get_all_features():
+def get_all_features(req: Request):
+    verify_basic_auth(req)
     try:
         features = db.get_enabled_features()
         return {
@@ -221,7 +228,8 @@ def get_all_features():
 
 
 @app.post("/api/features/{feature_name}/enable")
-def enable_feature(feature_name: str):
+def enable_feature(feature_name: str, req: Request):
+    verify_basic_auth(req)
     try:
         query = "UPDATE FeatureConfiguration SET IsEnabled = 1, UpdatedAt = GETDATE() WHERE FeatureName = ?"
         db.execute_non_query(query, [feature_name])
@@ -236,7 +244,8 @@ def enable_feature(feature_name: str):
 
 
 @app.post("/api/features/{feature_name}/disable")
-def disable_feature(feature_name: str):
+def disable_feature(feature_name: str, req: Request):
+    verify_basic_auth(req)
     try:
         query = "UPDATE FeatureConfiguration SET IsEnabled = 0, UpdatedAt = GETDATE() WHERE FeatureName = ?"
         db.execute_non_query(query, [feature_name])

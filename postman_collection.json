@@ -9,6 +9,11 @@
 			"key": "base_url",
 			"value": "http://localhost:8000",
 			"type": "string"
+		},
+		{
+			"key": "auth_header",
+			"value": "Basic RkRTOjEyMzQ1",
+			"type": "string"
 		}
 	],
 	"item": [
@@ -32,11 +37,15 @@
 					{
 						"key": "Content-Type",
 						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
 					}
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"customer_id\": \"12345\",\n    \"from_account_no\": \"1001234567\",\n    \"to_account_no\": \"2001234567\",\n    \"transaction_amount\": 1000.0,\n    \"transfer_type\": \"O\",\n    \"datetime\": \"2024-01-15T14:30:00Z\",\n    \"bank_country\": \"UAE\"\n}"
+					"raw": "{\n    \"customer_id\": \"1000016\",\n    \"from_account_no\": \"011000016033\",\n    \"from_account_currency\": \"AED\",\n    \"to_account_no\": \"011000016019\",\n    \"transaction_amount\": 750,\n    \"transfer_currency\": \"AED\",\n    \"transfer_type\": \"O\",\n    \"charges_type\": \"SHA\",\n    \"swift\": \"DEUTDEFJ\",\n    \"check_constraint\": true,\n    \"bank_country\": \"UAE\"\n}"
 				},
 				"url": {
 					"raw": "{{base_url}}/api/analyze-transaction",
@@ -53,11 +62,15 @@
 					{
 						"key": "Content-Type",
 						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
 					}
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"customer_id\": \"12345\",\n    \"from_account_no\": \"1001234567\",\n    \"to_account_no\": \"2001234567\",\n    \"transaction_amount\": 50000.0,\n    \"transfer_type\": \"S\",\n    \"datetime\": \"2024-01-15T14:30:00Z\",\n    \"bank_country\": \"USA\"\n}"
+					"raw": "{\n    \"customer_id\": \"1000016\",\n    \"from_account_no\": \"011000016033\",\n    \"from_account_currency\": \"AED\",\n    \"to_account_no\": \"011000016019\",\n    \"transaction_amount\": 50000,\n    \"transfer_currency\": \"AED\",\n    \"transfer_type\": \"S\",\n    \"charges_type\": \"SHA\",\n    \"swift\": \"DEUTDEFJ\",\n    \"check_constraint\": true,\n    \"bank_country\": \"USA\"\n}"
 				},
 				"url": {
 					"raw": "{{base_url}}/api/analyze-transaction",
@@ -74,11 +87,15 @@
 					{
 						"key": "Content-Type",
 						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
 					}
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"customer_id\": \"12345\",\n    \"from_account_no\": \"1001234567\",\n    \"to_account_no\": \"2001234567\",\n    \"transaction_amount\": -1000.0,\n    \"transfer_type\": \"O\",\n    \"datetime\": \"2024-01-15T14:30:00Z\",\n    \"bank_country\": \"UAE\"\n}"
+					"raw": "{\n    \"customer_id\": \"1000016\",\n    \"from_account_no\": \"011000016033\",\n    \"from_account_currency\": \"AED\",\n    \"to_account_no\": \"011000016019\",\n    \"transaction_amount\": -1000,\n    \"transfer_currency\": \"AED\",\n    \"transfer_type\": \"O\",\n    \"charges_type\": \"SHA\",\n    \"swift\": \"DEUTDEFJ\",\n    \"check_constraint\": true,\n    \"bank_country\": \"UAE\"\n}"
 				},
 				"url": {
 					"raw": "{{base_url}}/api/analyze-transaction",
@@ -95,58 +112,20 @@
 					{
 						"key": "Content-Type",
 						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
 					}
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"customer_id\": \"12345\",\n    \"from_account_no\": \"1001234567\",\n    \"to_account_no\": \"2001234567\",\n    \"transaction_amount\": 1000.0,\n    \"transfer_type\": \"X\",\n    \"datetime\": \"2024-01-15T14:30:00Z\",\n    \"bank_country\": \"UAE\"\n}"
+					"raw": "{\n    \"customer_id\": \"1000016\",\n    \"from_account_no\": \"011000016033\",\n    \"from_account_currency\": \"AED\",\n    \"to_account_no\": \"011000016019\",\n    \"transaction_amount\": 750,\n    \"transfer_currency\": \"AED\",\n    \"transfer_type\": \"X\",\n    \"charges_type\": \"SHA\",\n    \"swift\": \"DEUTDEFJ\",\n    \"check_constraint\": true,\n    \"bank_country\": \"UAE\"\n}"
 				},
 				"url": {
 					"raw": "{{base_url}}/api/analyze-transaction",
 					"host": ["{{base_url}}"],
 					"path": ["api", "analyze-transaction"]
-				}
-			}
-		},
-		{
-			"name": "Batch Transaction - Mixed Valid/Invalid",
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"transactions\": [\n        {\n            \"customer_id\": \"12345\",\n            \"from_account_no\": \"1001234567\",\n            \"to_account_no\": \"2001234567\",\n            \"transaction_amount\": 1000.0,\n            \"transfer_type\": \"O\",\n            \"datetime\": \"2024-01-15T14:30:00Z\",\n            \"bank_country\": \"UAE\"\n        },\n        {\n            \"customer_id\": \"12345\",\n            \"from_account_no\": \"1001234567\",\n            \"to_account_no\": \"3001234567\",\n            \"transaction_amount\": 25000.0,\n            \"transfer_type\": \"S\",\n            \"datetime\": \"2024-01-15T14:35:00Z\",\n            \"bank_country\": \"USA\"\n        },\n        {\n            \"customer_id\": \"67890\",\n            \"from_account_no\": \"2001234567\",\n            \"to_account_no\": \"1001234567\",\n            \"transaction_amount\": 500.0,\n            \"transfer_type\": \"L\",\n            \"datetime\": \"2024-01-15T14:40:00Z\",\n            \"bank_country\": \"UAE\"\n        }\n    ]\n}"
-				},
-				"url": {
-					"raw": "{{base_url}}/api/analyze-batch",
-					"host": ["{{base_url}}"],
-					"path": ["api", "analyze-batch"]
-				}
-			}
-		},
-		{
-			"name": "Batch Transaction - Velocity Test",
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"transactions\": [\n        {\n            \"customer_id\": \"99999\",\n            \"from_account_no\": \"9001234567\",\n            \"to_account_no\": \"9002234567\",\n            \"transaction_amount\": 1000.0,\n            \"transfer_type\": \"O\",\n            \"datetime\": \"2024-01-15T14:30:00Z\",\n            \"bank_country\": \"UAE\"\n        },\n        {\n            \"customer_id\": \"99999\",\n            \"from_account_no\": \"9001234567\",\n            \"to_account_no\": \"9003234567\",\n            \"transaction_amount\": 1500.0,\n            \"transfer_type\": \"O\",\n            \"datetime\": \"2024-01-15T14:31:00Z\",\n            \"bank_country\": \"UAE\"\n        },\n        {\n            \"customer_id\": \"99999\",\n            \"from_account_no\": \"9001234567\",\n            \"to_account_no\": \"9004234567\",\n            \"transaction_amount\": 2000.0,\n            \"transfer_type\": \"O\",\n            \"datetime\": \"2024-01-15T14:32:00Z\",\n            \"bank_country\": \"UAE\"\n        },\n        {\n            \"customer_id\": \"99999\",\n            \"from_account_no\": \"9001234567\",\n            \"to_account_no\": \"9005234567\",\n            \"transaction_amount\": 2500.0,\n            \"transfer_type\": \"O\",\n            \"datetime\": \"2024-01-15T14:33:00Z\",\n            \"bank_country\": \"UAE\"\n        },\n        {\n            \"customer_id\": \"99999\",\n            \"from_account_no\": \"9001234567\",\n            \"to_account_no\": \"9006234567\",\n            \"transaction_amount\": 3000.0,\n            \"transfer_type\": \"O\",\n            \"datetime\": \"2024-01-15T14:34:00Z\",\n            \"bank_country\": \"UAE\"\n        },\n        {\n            \"customer_id\": \"99999\",\n            \"from_account_no\": \"9001234567\",\n            \"to_account_no\": \"9007234567\",\n            \"transaction_amount\": 3500.0,\n            \"transfer_type\": \"O\",\n            \"datetime\": \"2024-01-15T14:35:00Z\",\n            \"bank_country\": \"UAE\"\n        }\n    ]\n}"
-				},
-				"url": {
-					"raw": "{{base_url}}/api/analyze-batch",
-					"host": ["{{base_url}}"],
-					"path": ["api", "analyze-batch"]
 				}
 			}
 		},
@@ -158,6 +137,10 @@
 					{
 						"key": "Content-Type",
 						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
 					}
 				],
 				"body": {
@@ -175,7 +158,12 @@
 			"name": "Get Pending Transactions",
 			"request": {
 				"method": "GET",
-				"header": [],
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
 				"url": {
 					"raw": "{{base_url}}/api/transactions/pending",
 					"host": ["{{base_url}}"],
@@ -192,6 +180,10 @@
 					{
 						"key": "Content-Type",
 						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
 					}
 				],
 				"body": {
@@ -214,6 +206,10 @@
 					{
 						"key": "Content-Type",
 						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
 					}
 				],
 				"body": {
@@ -232,7 +228,12 @@
 			"name": "Get All Features",
 			"request": {
 				"method": "GET",
-				"header": [],
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
 				"url": {
 					"raw": "{{base_url}}/api/features",
 					"host": ["{{base_url}}"],
@@ -249,6 +250,10 @@
 					{
 						"key": "Content-Type",
 						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
 					}
 				],
 				"url": {
@@ -267,6 +272,10 @@
 					{
 						"key": "Content-Type",
 						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
 					}
 				],
 				"url": {

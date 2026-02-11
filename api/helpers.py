@@ -1,7 +1,10 @@
 import logging
 from api.models import TransactionRequest
 from typing import List, Dict, Any
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+import base64
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -88,3 +91,25 @@ def update_transaction_status(transaction_id: str, action: str, actioned_by: str
         return False
     finally:
         db.disconnect()
+
+
+def verify_basic_auth(request: Request):
+    auth_header = request.headers.get("Authorization")
+    
+    if not auth_header or not auth_header.startswith("Basic "):
+        raise HTTPException(status_code=401, detail="authentication failed try again")
+    
+    try:
+        encoded_credentials = auth_header.split(" ")[1]
+        decoded = base64.b64decode(encoded_credentials).decode("utf-8")
+        username, password = decoded.split(":", 1)
+    except:
+        raise HTTPException(status_code=401, detail="authentication failed try again")
+    
+    expected_username = os.getenv("API_USERNAME")
+    expected_password = os.getenv("API_PASSWORD")
+    
+    if username != expected_username or password != expected_password:
+        raise HTTPException(status_code=401, detail="authentication failed try again")
+    
+    return True
