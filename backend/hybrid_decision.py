@@ -68,23 +68,43 @@ def make_decision(txn, user_stats, model, features, autoencoder=None):
     )
 
     result["threshold"] = threshold
+    risk_score = 0.0
+    
     if violated:
         result["is_fraud"] = True
         result["reasons"].extend(rule_reasons)
+        
+        # Set base risk score based on violation type
+        if any("Velocity" in reason for reason in rule_reasons):
+            risk_score = 0.85
+        elif any("Monthly spending" in reason for reason in rule_reasons):
+            risk_score = 0.70
+        elif any("New beneficiary" in reason for reason in rule_reasons):
+            risk_score = 0.60
+        else:
+            risk_score = 0.75
 
     if model is not None:
         vec = np.array([[txn.get(f, 0) for f in features]])
         pred = model.predict(vec)[0]
-        score = -model.decision_function(vec)[0]
+        raw_score = model.decision_function(vec)[0]
+        ml_score = max(0, min(1, (raw_score + 1) / 2))
 
-        result["risk_score"] = score
+        if violated:
+            # Rule already detected, add ML confidence
+            risk_score = risk_score + (ml_score * 0.15)
+        else:
+            # No rule violation, use ML score directly
+            risk_score = ml_score
 
-        if pred == -1:
+        if ml_score >= config['isolation_forest']['medium_risk_threshold']:
             result["ml_flag"] = True
             result["is_fraud"] = True
-            result["reasons"].append(
-                f"ML anomaly detected: abnormal behavior pattern (risk score {score:.4f})"
-            )
+            result["reasons"].append(f"ML anomaly detected: risk score {ml_score:.4f} exceeds threshold {config['isolation_forest']['medium_risk_threshold']}")
+        elif pred == -1:
+            result["ml_flag"] = True
+            result["is_fraud"] = True
+            result["reasons"].append(f"ML anomaly detected: abnormal behavior pattern (risk score {ml_score:.4f})")
     if autoencoder is not None:
         amount = txn.get('amount', 0)
         user_avg = user_stats.get('user_avg_amount', 5000)
@@ -144,20 +164,23 @@ def make_decision(txn, user_stats, model, features, autoencoder=None):
         if ae_result is not None:
             result["ae_reconstruction_error"] = ae_result['reconstruction_error']
             result["ae_threshold"] = ae_result['threshold']
+            ae_score = ae_result.get('reconstruction_error', 0)
             
             if ae_result['is_anomaly']:
                 result["ae_flag"] = True
                 result["is_fraud"] = True
                 result["reasons"].append(ae_result['reason'])
+                # Add AE score to risk_score
+                risk_score = risk_score + (ae_score * 0.10)
 
+    # Cap risk_score at 1.0
+    result["risk_score"] = min(risk_score, 1.0)
     result["risk_level"] = calculate_risk_level(result["risk_score"], config)
-    result["confidence_level"] = calculate_confidence(
-        violated, 
-        result["ml_flag"], 
-        result["ae_flag"], 
-        result["risk_score"], 
-        config
-    )
+    
+    if result["is_fraud"] and result["risk_level"] == "SAFE":
+        result["risk_level"] = "LOW"
+    
+    result["confidence_level"] = calculate_confidence(violated, result["ml_flag"], result["ae_flag"], result["risk_score"], config)
     result["model_agreement"] = round(sum([violated, result["ml_flag"], result["ae_flag"]]) / 3, 2)
 
     return result

@@ -51,11 +51,9 @@ def health_check():
 def analyze_transaction(request: TransactionRequest):
     start_time = datetime.now()
     
-    # Set datetime if not provided
     if request.datetime is None:
         request.datetime = datetime.now()
     
-    # Validate request
     validate_transfer_request(request)
     
     try:
@@ -80,32 +78,18 @@ def analyze_transaction(request: TransactionRequest):
         }
     except:
         user_stats = {
-            "user_avg_amount": 5000.0,
-            "user_std_amount": 2000.0,
-            "user_max_amount": 15000.0,
-            "user_txn_frequency": 0,
-            "user_international_ratio": 0.0,
-            "current_month_spending": 0.0,
-            "user_weekly_total": 0.0,
-            "user_weekly_txn_count": 0,
-            "user_weekly_avg_amount": 0.0,
-            "user_weekly_deviation": 0.0,
-            "user_monthly_txn_count": 0,
-            "user_monthly_avg_amount": 0.0,
-            "user_monthly_deviation": 0.0,
-            "txn_count_10min": 0,
-            "txn_count_1hour": 0,
-            "time_since_last_txn": 3600.0
+            "user_avg_amount": 5000.0, "user_std_amount": 2000.0, "user_max_amount": 15000.0,
+            "user_txn_frequency": 0, "user_international_ratio": 0.0, "current_month_spending": 0.0,
+            "user_weekly_total": 0.0, "user_weekly_txn_count": 0, "user_weekly_avg_amount": 0.0,
+            "user_weekly_deviation": 0.0, "user_monthly_txn_count": 0, "user_monthly_avg_amount": 0.0,
+            "user_monthly_deviation": 0.0, "txn_count_10min": 0, "txn_count_1hour": 0, "time_since_last_txn": 3600.0
         }
     
     try:
         is_new_ben = db.check_new_beneficiary(request.customer_id, request.to_account_no, request.transfer_type)
     except Exception as e:
-        logger.error(f"Beneficiary check failed - database unavailable: {e}")
-        raise HTTPException(
-            status_code=503,
-            detail="Service temporarily unavailable - unable to verify beneficiary. Please try again."
-        )
+        logger.error(f"Beneficiary check failed: {e}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     
     csv_velocity = get_velocity_from_csv(request.customer_id, request.from_account_no)
     
@@ -122,30 +106,29 @@ def analyze_transaction(request: TransactionRequest):
     
     result = make_decision(txn, user_stats, model, features, autoencoder)
     
-    decision = "REQUIRES_USER_APPROVAL" if result['is_fraud'] else "APPROVED"
+    risk_level = result.get('risk_level', 'SAFE')
+    if risk_level in ['HIGH', 'MEDIUM']:
+        decision = "REQUIRES_USER_APPROVAL"
+    elif risk_level == 'LOW':
+        decision = "APPROVE_WITH_NOTIFICATION"
+    else:
+        decision = "APPROVED"
     
     processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
     transaction_id = f"txn_{uuid.uuid4().hex[:8]}"
     
     result['processing_time_ms'] = processing_time
-    
     result['individual_scores'] = {
         "rule_engine": {"violated": result['is_fraud'], "threshold": result.get('threshold', 0)},
         "isolation_forest": {"anomaly_score": result.get('risk_score', 0), "is_anomaly": result.get('ml_flag', False)},
         "autoencoder": {"reconstruction_error": result.get('ae_reconstruction_error'), "is_anomaly": result.get('ae_flag', False)}
     }
     
-    save_transaction_to_file(
-        request=request,
-        decision=decision,
-        risk_score=result.get('risk_score', 0.0),
-        reasons=result.get('reasons', []),
-        transaction_id=transaction_id,
-        result=result
-    )
+    save_transaction_to_file(request=request, decision=decision, risk_score=result.get('risk_score', 0.0),
+        reasons=result.get('reasons', []), transaction_id=transaction_id, result=result)
     
     return TransactionResponse(
-        decision=decision,
+        advice=decision,
         risk_score=result.get('risk_score', 0.0),
         risk_level=result.get('risk_level', 'SAFE'),
         confidence_level=result.get('confidence_level', 0.0),

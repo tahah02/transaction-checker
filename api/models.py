@@ -21,7 +21,7 @@ class TransactionRequest(BaseModel):
 class TransactionResponse(BaseModel):
     model_config = {"protected_namespaces": ()}
     
-    decision: str
+    advice: str
     risk_score: float
     risk_level: str
     confidence_level: float

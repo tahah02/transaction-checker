@@ -252,21 +252,41 @@ class DatabaseService:
             padded_account = account_no.zfill(14)
             if DRIVER_TYPE == 'pymssql':
                 query = """
-                    SELECT SUM(AmountInAed) as monthly_total
-                    FROM TransactionHistoryLogs 
-                    WHERE CustomerId = %s AND (FromAccountNo = %s OR FromAccountNo = %s)
-                    AND MONTH(CreateDate) = MONTH(GETDATE()) 
-                    AND YEAR(CreateDate) = YEAR(GETDATE())
+                    SELECT COALESCE(SUM(AmountInAed), 0) as monthly_total
+                    FROM (
+                        SELECT AmountInAed FROM TransactionHistoryLogs 
+                        WHERE CustomerId = %s AND (FromAccountNo = %s OR FromAccountNo = %s)
+                        AND CreateDate >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()), 0)
+                        AND CreateDate < DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()) + 1, 0)
+                        
+                        UNION ALL
+                        
+                        SELECT AmountInAed FROM APITransactionLogs 
+                        WHERE CustomerId = %s AND (FromAccountNo = %s OR FromAccountNo = %s)
+                        AND CreateDate >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()), 0)
+                        AND CreateDate < DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()) + 1, 0)
+                    ) combined
                 """
+                params = [customer_id, account_no, padded_account, customer_id, account_no, padded_account]
             else:
                 query = """
-                    SELECT SUM(AmountInAed) as monthly_total
-                    FROM TransactionHistoryLogs 
-                    WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
-                    AND MONTH(CreateDate) = MONTH(GETDATE()) 
-                    AND YEAR(CreateDate) = YEAR(GETDATE())
+                    SELECT COALESCE(SUM(AmountInAed), 0) as monthly_total
+                    FROM (
+                        SELECT AmountInAed FROM TransactionHistoryLogs 
+                        WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
+                        AND CreateDate >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()), 0)
+                        AND CreateDate < DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()) + 1, 0)
+                        
+                        UNION ALL
+                        
+                        SELECT AmountInAed FROM APITransactionLogs 
+                        WHERE CustomerId = ? AND (FromAccountNo = ? OR FromAccountNo = ?)
+                        AND CreateDate >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()), 0)
+                        AND CreateDate < DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()) + 1, 0)
+                    ) combined
                 """
-            df = self.execute_query(query, [customer_id, account_no, padded_account])
+                params = [customer_id, account_no, padded_account, customer_id, account_no, padded_account]
+            df = self.execute_query(query, params)
             return float(df['monthly_total'].iloc[0] or 0.0)
         except Exception as e:
             logger.error(f"Error getting monthly spending: {e}")

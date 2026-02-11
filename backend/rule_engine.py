@@ -17,46 +17,26 @@ def calculate_all_limits(user_avg, user_std):
     return {t: calculate_threshold(user_avg, user_std, t) for t in ['S', 'I', 'L', 'Q', 'O', 'M', 'F']}
 
 
-def check_rule_violation(
-    amount,
-    user_avg,
-    user_std,
-    transfer_type,
-    txn_count_10min,
-    txn_count_1hour,
-    monthly_spending,
-    is_new_beneficiary=0
-):
+def check_rule_violation(amount, user_avg, user_std, transfer_type, txn_count_10min, txn_count_1hour, monthly_spending, is_new_beneficiary=0):
     reasons = []
     violated = False
     threshold = calculate_threshold(user_avg, user_std, transfer_type)
 
     if txn_count_10min > MAX_VELOCITY_10MIN:
         violated = True
-        reasons.append(
-            f"Velocity limit exceeded: {txn_count_10min} transactions in last 10 minutes "
-            f"(max allowed {MAX_VELOCITY_10MIN})"
-        )
+        reasons.append(f"Velocity limit exceeded: {txn_count_10min} transactions in last 10 minutes (max allowed {MAX_VELOCITY_10MIN})")
 
     if txn_count_1hour > MAX_VELOCITY_1HOUR:
         violated = True
-        reasons.append(
-            f"Hourly velocity limit exceeded: {txn_count_1hour} transactions in last 1 hour "
-            f"(max allowed {MAX_VELOCITY_1HOUR})"
-        )
+        reasons.append(f"Hourly velocity limit exceeded: {txn_count_1hour} transactions in last 1 hour (max allowed {MAX_VELOCITY_1HOUR})")
 
     projected = monthly_spending + amount
     if projected > threshold:
         violated = True
-        reasons.append(
-            f"Monthly spending AED {projected:,.2f} exceeds limit AED {threshold:,.2f}"
-        )
+        reasons.append(f"Monthly spending AED {projected:,.2f} exceeds limit AED {threshold:,.2f}")
 
-    # New beneficiary check
     if is_new_beneficiary == 1:
         violated = True
-        reasons.append(
-            "New beneficiary detected - first time transaction to this recipient requires approval"
-        )
+        reasons.append("New beneficiary detected - first time transaction to this recipient requires approval")
 
     return violated, reasons, threshold
