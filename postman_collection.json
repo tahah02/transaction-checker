@@ -227,6 +227,55 @@
 				},
 				"description": "Customer rejects suspicious transaction. Replace transaction_id with actual ID from pending list."
 			}
+		},
+		{
+			"name": "Get All Features",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/features",
+					"host": ["{{base_url}}"],
+					"path": ["api", "features"]
+				},
+				"description": "Get list of all enabled features"
+			}
+		},
+		{
+			"name": "Enable Feature",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/features/transaction_amount/enable",
+					"host": ["{{base_url}}"],
+					"path": ["api", "features", "transaction_amount", "enable"]
+				},
+				"description": "Enable a specific feature. Replace 'transaction_amount' with feature name."
+			}
+		},
+		{
+			"name": "Disable Feature",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/features/transaction_amount/disable",
+					"host": ["{{base_url}}"],
+					"path": ["api", "features", "transaction_amount", "disable"]
+				},
+				"description": "Disable a specific feature. Replace 'transaction_amount' with feature name."
+			}
 		}
 	]
 }
