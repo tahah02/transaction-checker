@@ -511,6 +511,21 @@ class DatabaseService:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.disconnect()
 
+    def get_enabled_features(self) -> List[str]:
+        try:
+            if not self.is_connected():
+                if not self.connect():
+                    return []
+            
+            query = "SELECT FeatureName FROM FeatureConfiguration WHERE IsEnabled = 1"
+            result = self.execute_query(query)
+            if result is not None and not result.empty:
+                return result['FeatureName'].tolist()
+            return []
+        except Exception as e:
+            logger.error(f"Error fetching enabled features: {e}")
+            return []
+
 db_service = DatabaseService()
 
 def get_db_service() -> DatabaseService:

@@ -220,3 +220,48 @@ def reject_transaction(request: RejectionRequest):
 @app.get("/api/transactions/pending")
 def list_pending_transactions():
     return get_pending_transactions()
+
+
+# Feature Configuration Endpoints
+@app.get("/api/features")
+def get_all_features():
+    try:
+        features = db.get_enabled_features()
+        return {
+            "status": "success",
+            "features": features,
+            "count": len(features)
+        }
+    except Exception as e:
+        logger.error(f"Error fetching features: {e}")
+        raise HTTPException(status_code=500, detail="Error fetching features")
+
+
+@app.post("/api/features/{feature_name}/enable")
+def enable_feature(feature_name: str):
+    try:
+        query = "UPDATE FeatureConfiguration SET IsEnabled = 1, UpdatedAt = GETDATE() WHERE FeatureName = ?"
+        db.execute_non_query(query, [feature_name])
+        return {
+            "status": "success",
+            "message": f"Feature '{feature_name}' enabled",
+            "feature_name": feature_name
+        }
+    except Exception as e:
+        logger.error(f"Error enabling feature: {e}")
+        raise HTTPException(status_code=500, detail="Error enabling feature")
+
+
+@app.post("/api/features/{feature_name}/disable")
+def disable_feature(feature_name: str):
+    try:
+        query = "UPDATE FeatureConfiguration SET IsEnabled = 0, UpdatedAt = GETDATE() WHERE FeatureName = ?"
+        db.execute_non_query(query, [feature_name])
+        return {
+            "status": "success",
+            "message": f"Feature '{feature_name}' disabled",
+            "feature_name": feature_name
+        }
+    except Exception as e:
+        logger.error(f"Error disabling feature: {e}")
+        raise HTTPException(status_code=500, detail="Error disabling feature")
