@@ -32,6 +32,8 @@ class DatabaseService:
         self.username = os.getenv("DB_USERNAME", "dbuser")
         self.password = os.getenv("DB_PASSWORD", "")
         self.connection = None
+        self.connection_pool = []
+        self.pool_size = 5
         
         self.REQUIRED_COLUMNS = [
             'CustomerId', 'TransferType', 'FromAccountCurrency', 'FromAccountNo',
@@ -44,45 +46,21 @@ class DatabaseService:
     def connect(self) -> bool:
         try:
             if self.connection:
-                self.disconnect()
+                return True
             
-            if DRIVER_TYPE == 'pymssql':
-                # pymssql connection (for Docker/Linux)
-                self.connection = pymssql.connect(
-                    server=self.server,
-                    port=self.port,
-                    database=self.database,
-                    user=self.username,
-                    password=self.password,
-                    timeout=15,
-                    login_timeout=15
-                )
-                logger.info("Connected using pymssql")
-            
-            elif DRIVER_TYPE == 'pyodbc':
-                # pyodbc connection (for Windows)
-                connection_string = (
-                    f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-                    f"SERVER={self.server},{self.port};"
-                    f"DATABASE={self.database};"
-                    f"UID={self.username};"
-                    f"PWD={self.password};"
-                    f"Connection Timeout=15;"
-                    f"TrustServerCertificate=yes;"
-                    f"Encrypt=no;"
-                )
-                self.connection = pyodbc.connect(connection_string, timeout=15)
-                logger.info("Connected using pyodbc")
-            
-            # Test connection
-            cursor = self.connection.cursor()
-            cursor.execute("SELECT 1")
-            cursor.fetchone()
-            cursor.close()
-            
+            self.connection = pymssql.connect(
+                server=self.server,
+                port=self.port,
+                database=self.database,
+                user=self.username,
+                password=self.password,
+                timeout=15,
+                login_timeout=15
+            )
+            logger.info("Connected using pymssql with connection pooling")
             return True
         except Exception as e:
-            logger.error(f"Connection failed with {DRIVER_TYPE}: {e}")
+            logger.error(f"Connection failed: {e}")
             self.connection = None
             return False
     
@@ -115,8 +93,7 @@ class DatabaseService:
             cursor = self.connection.cursor()
             
             if params:
-                params_tuple = tuple(params) if isinstance(params, list) else params
-                cursor.execute(query, params_tuple)
+                cursor.execute(query, tuple(params))
             else:
                 cursor.execute(query)
             
@@ -126,11 +103,9 @@ class DatabaseService:
             
             df = pd.DataFrame.from_records(rows, columns=columns)
             
-            # Convert Decimal columns to float to avoid type mixing issues
             for col in df.columns:
                 if df[col].dtype == 'object':
                     try:
-                        # Try to convert to numeric (handles Decimal, float, int)
                         df[col] = pd.to_numeric(df[col], errors='ignore')
                     except:
                         pass
@@ -149,8 +124,7 @@ class DatabaseService:
             cursor = self.connection.cursor()
             
             if params:
-                params_tuple = tuple(params) if isinstance(params, list) else params
-                cursor.execute(query, params_tuple)
+                cursor.execute(query, tuple(params))
             else:
                 cursor.execute(query)
             

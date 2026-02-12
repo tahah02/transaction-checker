@@ -11,3 +11,4 @@ python-dotenv==1.0.0
 # Database drivers (install one based on platform)
 # pymssql==2.2.11  # For Docker/Linux
 # pyodbc  # For Windows (usually pre-installed)
+sqlalchemy>=2.0.0
