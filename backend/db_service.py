@@ -572,6 +572,44 @@ class DatabaseService:
             logger.error(f"Error fetching transaction log: {e}")
             return None
 
+    def get_customer_checks_config(self, customer_id: str, account_no: str, transfer_type: str) -> Dict[str, int]:
+        try:
+            if not self.is_connected():
+                if not self.connect():
+                    return self._default_checks_config()
+
+            query = """
+            SELECT ParameterName, IsEnabled
+            FROM CustomerAccountTransferTypeConfig
+            WHERE CustomerID = %s AND AccountNo = %s AND TransferType = %s
+            AND ParameterName IN ('velocity_check_10min', 'velocity_check_1hour', 'monthly_spending_check', 'new_beneficiary_check')
+            AND IsActive = 1
+            """
+
+            result = self.execute_query(query, [customer_id, account_no, transfer_type])
+
+            config = self._default_checks_config()
+
+            if result is not None and len(result) > 0:
+                for _, row in result.iterrows():
+                    param_name = row['ParameterName']
+                    if param_name in config:
+                        config[param_name] = row['IsEnabled']
+
+            return config
+
+        except Exception as e:
+            logger.error(f"Error fetching customer checks config: {e}")
+            return self._default_checks_config()
+
+    def _default_checks_config(self) -> Dict[str, int]:
+        return {
+            'velocity_check_10min': 1,
+            'velocity_check_1hour': 1,
+            'monthly_spending_check': 1,
+            'new_beneficiary_check': 1
+        }
+
 db_service = DatabaseService()
 
 def get_db_service() -> DatabaseService:

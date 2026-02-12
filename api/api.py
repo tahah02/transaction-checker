@@ -109,6 +109,8 @@ def analyze_transaction(request: TransactionRequest, req: Request):
     csv_velocity = get_velocity_from_csv(request.customer_id, request.from_account_no)
     
     txn = {
+        "customer_id": request.customer_id,
+        "account_no": request.from_account_no,
         "amount": request.transaction_amount,
         "transfer_type": request.transfer_type,
         "bank_country": request.bank_country,

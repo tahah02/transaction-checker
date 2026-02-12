@@ -573,9 +573,9 @@ ADMIN_KEY=FDS12345
 
 ### Commands
 ```
-docker-compose -f Docker/docker-compose.yml build
-docker-compose -f Docker/docker-compose.yml up -d
-docker-compose -f Docker/docker-compose.yml logs -f
+docker-compose build
+docker-compose up -dab 
+docker-compose logs -f
 ```
 
 ---

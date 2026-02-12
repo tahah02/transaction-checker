@@ -1,6 +1,7 @@
 import json
 import numpy as np
 from backend.rule_engine import check_rule_violation
+from backend.db_service import get_db_service
 
 
 def load_risk_config():
@@ -42,6 +43,13 @@ def calculate_confidence(rule_violated, ml_flag, ae_flag, risk_score, config):
 
 def make_decision(txn, user_stats, model, features, autoencoder=None):
     config = load_risk_config()
+    db = get_db_service()
+    
+    customer_id = txn.get("customer_id", "")
+    account_no = txn.get("account_no", "")
+    transfer_type = txn.get("transfer_type", "O")
+    
+    checks_config = db.get_customer_checks_config(customer_id, account_no, transfer_type)
     
     result = {
         "is_fraud": False,
@@ -64,7 +72,8 @@ def make_decision(txn, user_stats, model, features, autoencoder=None):
         txn_count_10min=txn["txn_count_10min"],
         txn_count_1hour=txn["txn_count_1hour"],
         monthly_spending=user_stats["current_month_spending"],
-        is_new_beneficiary=txn.get("is_new_beneficiary", 0)
+        is_new_beneficiary=txn.get("is_new_beneficiary", 0),
+        checks_config=checks_config
     )
 
     result["threshold"] = threshold

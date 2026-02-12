@@ -17,26 +17,38 @@ def calculate_all_limits(user_avg, user_std):
     return {t: calculate_threshold(user_avg, user_std, t) for t in ['S', 'I', 'L', 'Q', 'O', 'M', 'F']}
 
 
-def check_rule_violation(amount, user_avg, user_std, transfer_type, txn_count_10min, txn_count_1hour, monthly_spending, is_new_beneficiary=0):
+def check_rule_violation(amount, user_avg, user_std, transfer_type, txn_count_10min, txn_count_1hour, monthly_spending, is_new_beneficiary=0, checks_config=None):
+    if checks_config is None:
+        checks_config = {
+            'velocity_check_10min': 1,
+            'velocity_check_1hour': 1,
+            'monthly_spending_check': 1,
+            'new_beneficiary_check': 1
+        }
+    
     reasons = []
     violated = False
     threshold = calculate_threshold(user_avg, user_std, transfer_type)
 
-    if txn_count_10min > MAX_VELOCITY_10MIN:
-        violated = True
-        reasons.append(f"Velocity limit exceeded: {txn_count_10min} transactions in last 10 minutes (max allowed {MAX_VELOCITY_10MIN})")
+    if checks_config['velocity_check_10min'] == 1:
+        if txn_count_10min > MAX_VELOCITY_10MIN:
+            violated = True
+            reasons.append(f"Velocity limit exceeded: {txn_count_10min} transactions in last 10 minutes (max allowed {MAX_VELOCITY_10MIN})")
 
-    if txn_count_1hour > MAX_VELOCITY_1HOUR:
-        violated = True
-        reasons.append(f"Hourly velocity limit exceeded: {txn_count_1hour} transactions in last 1 hour (max allowed {MAX_VELOCITY_1HOUR})")
+    if checks_config['velocity_check_1hour'] == 1:
+        if txn_count_1hour > MAX_VELOCITY_1HOUR:
+            violated = True
+            reasons.append(f"Hourly velocity limit exceeded: {txn_count_1hour} transactions in last 1 hour (max allowed {MAX_VELOCITY_1HOUR})")
 
-    projected = monthly_spending + amount
-    if projected > threshold:
-        violated = True
-        reasons.append(f"Monthly spending AED {projected:,.2f} exceeds limit AED {threshold:,.2f}")
+    if checks_config['monthly_spending_check'] == 1:
+        projected = monthly_spending + amount
+        if projected > threshold:
+            violated = True
+            reasons.append(f"Monthly spending AED {projected:,.2f} exceeds limit AED {threshold:,.2f}")
 
-    if is_new_beneficiary == 1:
-        violated = True
-        reasons.append("New beneficiary detected - first time transaction to this recipient requires approval")
+    if checks_config['new_beneficiary_check'] == 1:
+        if is_new_beneficiary == 1:
+            violated = True
+            reasons.append("New beneficiary detected - first time transaction to this recipient requires approval")
 
     return violated, reasons, threshold
