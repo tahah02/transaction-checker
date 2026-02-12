@@ -546,6 +546,58 @@ class DatabaseService:
             logger.error(f"Error fetching enabled features: {e}")
             return []
 
+    def insert_transaction_log(self, idempotence_key: str, request_method: str, 
+                               request_endpoint: str, request_payload: str,
+                               response_status_code: int, is_successful: bool,
+                               user_id: str = None, client_ip: str = None,
+                               response_payload: str = None, risk_score: float = None,
+                               decision: str = None, error_code: str = None,
+                               error_message: str = None, execution_time_ms: int = None) -> int:
+        try:
+            if not self.is_connected():
+                if not self.connect():
+                    return -1
+            
+            query = """
+            INSERT INTO TransactionLogs (
+                IdempotenceKey, RequestMethod, RequestEndpoint, RequestPayload,
+                ResponseStatusCode, IsSuccessful, UserID, ClientIP, ResponsePayload,
+                RiskScore, Decision, ErrorCode, ErrorMessage, ExecutionTimeMs, CreatedAt
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, GETDATE())
+            """
+            
+            params = [
+                idempotence_key, request_method, request_endpoint, request_payload,
+                response_status_code, is_successful, user_id, client_ip, response_payload,
+                risk_score, decision, error_code, error_message, execution_time_ms
+            ]
+            
+            return self.execute_non_query(query, params)
+        except Exception as e:
+            logger.error(f"Error inserting transaction log: {e}")
+            return -1
+
+    def get_transaction_log_by_idempotence_key(self, idempotence_key: str) -> dict:
+        try:
+            if not self.is_connected():
+                if not self.connect():
+                    return None
+            
+            query = """
+            SELECT * FROM TransactionLogs 
+            WHERE IdempotenceKey = %s AND IsSuccessful = %s
+            ORDER BY CreatedAt DESC
+            """
+            
+            result = self.execute_query(query, [idempotence_key, 1])
+            
+            if result is not None and not result.empty:
+                return result.iloc[0].to_dict()
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching transaction log: {e}")
+            return None
+
 db_service = DatabaseService()
 
 def get_db_service() -> DatabaseService:

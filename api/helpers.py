@@ -1,10 +1,13 @@
 import logging
+import uuid
+import json
+import base64
+import os
 from api.models import TransactionRequest
 from typing import List, Dict, Any
 from fastapi import HTTPException, Request
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-import base64
-import os
+from backend.db_service import get_db_service
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +34,7 @@ def validate_transfer_request(request: TransactionRequest):
     return True
 
 
-def save_transaction_to_file(request: TransactionRequest, decision: str, risk_score: float, reasons: List[str], transaction_id: str, result: Dict[str, Any] = None):
-    from backend.db_service import get_db_service
+def save_transaction_to_file(request: TransactionRequest, decision: str, risk_score: float, reasons: List[str], transaction_id: str, result: Dict[str, Any] = None, idempotence_key: str = None):
     db = get_db_service()
     
     try:
@@ -66,15 +68,44 @@ def save_transaction_to_file(request: TransactionRequest, decision: str, risk_sc
         ]
         
         db.execute_non_query(query, params)
+        
+        response_payload = {
+            "advice": decision,
+            "risk_score": float(risk_score),
+            "risk_level": result.get('risk_level', 'SAFE') if result else 'SAFE',
+            "confidence_level": float(result.get('confidence_level', 0.0)) if result else 0.0,
+            "model_agreement": float(result.get('model_agreement', 0.0)) if result else 0.0,
+            "reasons": reasons,
+            "transaction_id": transaction_id,
+            "processing_time_ms": int(result.get('processing_time_ms', 0)) if result else 0
+        }
+        
+        request_dict = request.dict()
+        request_dict['datetime'] = request_dict['datetime'].isoformat() if request_dict.get('datetime') else None
+        
+        if idempotence_key:
+            db.insert_transaction_log(
+                idempotence_key=idempotence_key,
+                request_method="POST",
+                request_endpoint="/api/analyze-transaction",
+                request_payload=json.dumps(request_dict),
+                response_status_code=200,
+                is_successful=True,
+                user_id=request.customer_id,
+                response_payload=json.dumps(response_payload),
+                risk_score=float(risk_score),
+                decision=decision,
+                execution_time_ms=int(result.get('processing_time_ms', 0)) if result else 0
+            )
+        
         logger.info(f"Transaction {transaction_id} saved")
     except Exception as e:
-        logger.error(f"Save transaction failed: {e}")
+        logger.error(f"Save transaction failed: {e}", exc_info=True)
     finally:
         db.disconnect()
 
 
 def update_transaction_status(transaction_id: str, action: str, actioned_by: str, comments: str = "") -> bool:
-    from backend.db_service import get_db_service
     db = get_db_service()
     
     try:
@@ -113,3 +144,39 @@ def verify_basic_auth(request: Request):
         raise HTTPException(status_code=401, detail="authentication failed try again")
     
     return True
+
+
+def verify_admin_key(admin_key: str) -> bool:
+    expected_admin_key = os.getenv("ADMIN_KEY")
+    if not admin_key or admin_key != expected_admin_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key")
+    return True
+
+
+def generate_idempotence_key() -> str:
+    return str(uuid.uuid4())
+
+def check_idempotence(idempotence_key: str) -> dict:
+    db = get_db_service()
+    
+    try:
+        if not db.connect():
+            return None
+        
+        cached_log = db.get_transaction_log_by_idempotence_key(idempotence_key)
+        
+        if cached_log:
+            return {
+                "is_duplicate": True,
+                "decision": cached_log.get('Decision'),
+                "risk_score": cached_log.get('RiskScore'),
+                "response_payload": cached_log.get('ResponsePayload'),
+                "log_id": cached_log.get('LogID')
+            }
+        
+        return {"is_duplicate": False}
+    except Exception as e:
+        logger.error(f"Error checking idempotence: {e}")
+        return None
+    finally:
+        db.disconnect()

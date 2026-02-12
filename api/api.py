@@ -2,13 +2,14 @@ from fastapi import FastAPI, HTTPException, Request, Depends
 from datetime import datetime
 import uuid
 import logging
+import json
 from backend.hybrid_decision import make_decision
 from backend.utils import load_model
 from backend.autoencoder import AutoencoderInference
 from backend.db_service import get_db_service
 from api.models import TransactionRequest, TransactionResponse, ApprovalRequest, RejectionRequest, ActionResponse
 from api.services import get_velocity_from_csv, get_pending_transactions
-from api.helpers import save_transaction_to_file, update_transaction_status, validate_transfer_request, verify_basic_auth
+from api.helpers import save_transaction_to_file, update_transaction_status, validate_transfer_request, verify_basic_auth, generate_idempotence_key, check_idempotence, verify_admin_key
 
 logger = logging.getLogger(__name__)
 app = FastAPI(title="Banking Fraud Detection API", version="1.0.0")
@@ -56,6 +57,17 @@ def analyze_transaction(request: TransactionRequest, req: Request):
     
     if request.datetime is None:
         request.datetime = datetime.now()
+    
+    idempotence_key = request.idempotence_key or generate_idempotence_key()
+    
+    cached = check_idempotence(idempotence_key)
+    if cached and cached.get("is_duplicate"):
+        response_payload = cached.get("response_payload")
+        if response_payload:
+            response_data = json.loads(response_payload) if isinstance(response_payload, str) else response_payload
+            response_data["idempotence_key"] = idempotence_key
+            response_data["is_cached"] = True
+            return TransactionResponse(**response_data)
     
     validate_transfer_request(request)
     
@@ -128,7 +140,7 @@ def analyze_transaction(request: TransactionRequest, req: Request):
     }
     
     save_transaction_to_file(request=request, decision=decision, risk_score=result.get('risk_score', 0.0),
-        reasons=result.get('reasons', []), transaction_id=transaction_id, result=result)
+        reasons=result.get('reasons', []), transaction_id=transaction_id, result=result, idempotence_key=idempotence_key)
     
     return TransactionResponse(
         advice=decision,
@@ -139,13 +151,17 @@ def analyze_transaction(request: TransactionRequest, req: Request):
         reasons=result.get('reasons', []),
         individual_scores=result['individual_scores'],
         transaction_id=transaction_id,
-        processing_time_ms=processing_time
+        processing_time_ms=processing_time,
+        idempotence_key=idempotence_key,
+        is_cached=False
     )
 
 
 @app.post("/api/transaction/approve", response_model=ActionResponse)
 def approve_transaction(request: ApprovalRequest, req: Request):
     verify_basic_auth(req)
+    verify_admin_key(request.admin_key)
+    
     try:
         success = update_transaction_status(
             transaction_id=request.transaction_id,
@@ -159,6 +175,18 @@ def approve_transaction(request: ApprovalRequest, req: Request):
                 status_code=404,
                 detail=f"Transaction {request.transaction_id} not found or update failed"
             )
+        
+        db.insert_transaction_log(
+            idempotence_key=f"approval_{request.transaction_id}",
+            request_method="POST",
+            request_endpoint="/api/transaction/approve",
+            request_payload=json.dumps(request.dict()),
+            response_status_code=200,
+            is_successful=True,
+            user_id=request.customer_id,
+            decision="APPROVED",
+            execution_time_ms=0
+        )
         
         return ActionResponse(
             status="approved",
@@ -177,6 +205,8 @@ def approve_transaction(request: ApprovalRequest, req: Request):
 @app.post("/api/transaction/reject", response_model=ActionResponse)
 def reject_transaction(request: RejectionRequest, req: Request):
     verify_basic_auth(req)
+    verify_admin_key(request.admin_key)
+    
     try:
         success = update_transaction_status(
             transaction_id=request.transaction_id,
@@ -190,6 +220,18 @@ def reject_transaction(request: RejectionRequest, req: Request):
                 status_code=404,
                 detail=f"Transaction {request.transaction_id} not found or update failed"
             )
+        
+        db.insert_transaction_log(
+            idempotence_key=f"rejection_{request.transaction_id}",
+            request_method="POST",
+            request_endpoint="/api/transaction/reject",
+            request_payload=json.dumps(request.dict()),
+            response_status_code=200,
+            is_successful=True,
+            user_id=request.customer_id,
+            decision="REJECTED",
+            execution_time_ms=0
+        )
         
         return ActionResponse(
             status="rejected",

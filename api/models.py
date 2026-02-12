@@ -16,6 +16,7 @@ class TransactionRequest(BaseModel):
     check_constraint: bool = True
     datetime: Optional[datetime] = None
     bank_country: Optional[str] = "UAE"
+    idempotence_key: Optional[str] = None
 
 
 class TransactionResponse(BaseModel):
@@ -30,17 +31,21 @@ class TransactionResponse(BaseModel):
     individual_scores: dict
     transaction_id: str
     processing_time_ms: int
+    idempotence_key: Optional[str] = None
+    is_cached: Optional[bool] = False
 
 
 class ApprovalRequest(BaseModel):
     transaction_id: str
     customer_id: str
+    admin_key: str
     comments: Optional[str] = ""
 
 
 class RejectionRequest(BaseModel):
     transaction_id: str
     customer_id: str
+    admin_key: str
     reason: str
 
 

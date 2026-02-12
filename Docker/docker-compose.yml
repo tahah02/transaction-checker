@@ -19,6 +19,7 @@ services:
       # API Authentication
       - API_USERNAME=FDS
       - API_PASSWORD=12345
+      - ADMIN_KEY=FDS12345
       
       # Optional: Python environment
       - PYTHONUNBUFFERED=1
