@@ -7,6 +7,8 @@ from backend.hybrid_decision import make_decision
 from backend.utils import load_model
 from backend.autoencoder import AutoencoderInference
 from backend.db_service import get_db_service
+from backend.mlops.scheduler import start_scheduler, stop_scheduler
+from backend.mlops.retraining_pipeline import run_retraining
 from api.models import TransactionRequest, TransactionResponse, ApprovalRequest, RejectionRequest, ActionResponse
 from api.services import get_velocity_from_csv, get_pending_transactions
 from api.helpers import save_transaction_to_file, update_transaction_status, validate_transfer_request, verify_basic_auth, generate_idempotence_key, check_idempotence, verify_admin_key
@@ -20,6 +22,10 @@ autoencoder = AutoencoderInference()
 autoencoder.load()
 
 
+@app.on_event("startup")
+async def startup_event():
+    start_scheduler()
+    logger.info("MLOps Scheduler started")
 
 
 @app.get("/api/health")
@@ -301,3 +307,15 @@ def disable_feature(feature_name: str, req: Request):
     except Exception as e:
         logger.error(f"Error disabling feature: {e}")
         raise HTTPException(status_code=500, detail="Error disabling feature")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    stop_scheduler()
+    logger.info("MLOps Scheduler stopped")
+
+
+@app.post("/api/mlops/trigger-retraining")
+def trigger_retraining(req: Request):
+    verify_basic_auth(req)
+    result = run_retraining()
+    return {"status": "success" if result else "failed"}

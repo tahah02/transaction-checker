@@ -285,6 +285,24 @@
 				},
 				"description": "Disable a specific feature. Replace 'transaction_amount' with feature name."
 			}
+		},
+		{
+			"name": "Trigger Retraining",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/mlops/trigger-retraining",
+					"host": ["{{base_url}}"],
+					"path": ["api", "mlops", "trigger-retraining"]
+				},
+				"description": "Manually trigger model retraining"
+			}
 		}
 	]
 }

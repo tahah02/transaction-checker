@@ -511,7 +511,7 @@ class DatabaseService:
                 if not self.connect():
                     return []
             
-            query = "SELECT FeatureName FROM FeatureConfiguration WHERE IsEnabled = 1"
+            query = "SELECT FeatureName FROM FeaturesConfig WHERE IsEnabled = 1"
             result = self.execute_query(query)
             if result is not None and not result.empty:
                 return result['FeatureName'].tolist()

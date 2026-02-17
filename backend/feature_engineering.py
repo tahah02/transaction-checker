@@ -6,9 +6,10 @@ from backend.db_service import get_db_service
 
 OUTPUT_PATH = 'data/feature_datasetv2.csv'
 
-def engineer_features():
+def engineer_features(df=None):
     ensure_data_dir()
-    df = pd.read_csv(get_clean_csv_path())
+    if df is None:
+        df = pd.read_csv(get_clean_csv_path())
     
     # Get enabled features from database
     try:
