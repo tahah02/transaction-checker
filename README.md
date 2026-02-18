@@ -21,6 +21,10 @@ This system provides real-time fraud detection using three complementary approac
 - **Graceful Degradation:** System continues if components fail
 - **Scalable Architecture:** Ready for production deployment
 - **Complete Audit Trail:** Every decision logged with full traceability
+- **Automated Model Retraining:** MLOps pipeline with scheduled retraining
+- **Model Versioning:** Track and rollback to previous model versions
+- **Live Data Integration:** Models train on fresh database data, not static CSVs
+- **Automatic Scheduler:** Weekly/monthly/custom interval retraining
 
 ## System Architecture
 
@@ -278,7 +282,7 @@ transaction-checker/
 ├── backend/
 │   ├── autoencoder.py            # Autoencoder model
 │   ├── db_service.py             # Database operations
-│   ├── feature_engineering.py    # Feature creation
+│   ├── feature_engineering.py    # Feature creation (accepts live data)
 │   ├── hybrid_decision.py        # Decision engine
 │   ├── input_validator.py        # Input validation
 │   ├── isolation_forest.py       # IF model
@@ -289,16 +293,29 @@ transaction-checker/
 │   ├── velocity_service.py       # Velocity tracking
 │   ├── config/
 │   │   └── risk_thresholds.json  # Configuration
+│   ├── mlops/
+│   │   ├── data_fetcher.py       # Fetch training data from DB
+│   │   ├── model_versioning.py   # Version management
+│   │   ├── retraining_pipeline.py # Orchestrate retraining
+│   │   ├── scheduler.py          # APScheduler setup
+│   │   └── __init__.py
 │   └── model/
 │       ├── autoencoder.h5        # Trained AE
 │       ├── isolation_forest.pkl  # Trained IF
-│       └── *.pkl                 # Scalers
+│       ├── *.pkl                 # Scalers
+│       ├── current_version.txt   # Active version
+│       └── versions/
+│           ├── 1.0.1/
+│           ├── 1.0.2/
+│           └── 1.0.3/            # Versioned models
 ├── data/
 │   ├── Clean.csv                 # Cleaned data
 │   └── feature_dataset*.csv      # Engineered features
 ├── docs/
 │   ├── COMPREHENSIVE_SOLUTION_DOCUMENT.md
 │   ├── FINAL_SOLUTION_DOCUMENT.md
+│   ├── MLOPS_SCHEDULER_GUIDE.md  # MLOps documentation
+│   ├── END_TO_END_VERIFICATION_REPORT.md
 │   ├── API_Documentation.md
 │   └── ... (other documentation)
 ├── Docker/
@@ -426,6 +443,61 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Inspired by real-world banking fraud challenges
 - Production-ready architecture
 - Comprehensive testing and documentation
+
+## MLOps & Automated Retraining
+
+### Automated Model Retraining Pipeline
+
+The system includes a complete MLOps pipeline that automatically retrains models on a configurable schedule:
+
+**Features:**
+- **Scheduled Retraining:** Weekly (Monday 2 AM) and Monthly (1st day 3 AM)
+- **Live Data Integration:** Models train on fresh data from TransactionHistoryLogs and APITransactionLogs
+- **Model Versioning:** Automatic semantic versioning (1.0.1, 1.0.2, etc.)
+- **Feature Engineering:** 43 features engineered from live transaction data
+- **Graceful Degradation:** System continues with current models if retraining fails
+- **Comprehensive Logging:** All training runs tracked in ModelTrainingRuns table
+
+### Retraining Pipeline Steps
+
+1. **Data Fetching:** Combines historical and recent transaction data
+2. **Feature Engineering:** Generates 43 features from live data
+3. **Model Training:** Trains both Isolation Forest and Autoencoder
+4. **Validation:** Verifies model quality metrics
+5. **Versioning:** Saves models with metadata
+6. **Deployment:** Updates current version for next transaction
+7. **Logging:** Records training run details
+
+### Configuration
+
+**Database Tables:**
+- `RetrainingConfig` - Schedule and interval settings
+- `ModelTrainingRuns` - Training run history and metrics
+
+**Update Retraining Schedule:**
+```sql
+UPDATE RetrainingConfig 
+SET Interval = '1D'  -- Daily retraining
+WHERE ConfigId = 1
+```
+
+**Supported Intervals:**
+- `1H` - Every 1 hour
+- `1D` - Every 1 day
+- `1W` - Every 1 week (default)
+- `1M` - Every 30 days
+- `1Y` - Every 365 days
+
+### Manual Trigger
+
+```bash
+POST /api/mlops/trigger-retraining
+Authorization: Bearer ADMIN_KEY
+```
+
+For detailed MLOps documentation, see [MLOPS_SCHEDULER_GUIDE.md](docs/MLOPS_SCHEDULER_GUIDE.md)
+
+---
 
 ## Contact
 

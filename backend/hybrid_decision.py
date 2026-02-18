@@ -5,8 +5,47 @@ from backend.db_service import get_db_service
 
 
 def load_risk_config():
-    with open('backend/config/risk_thresholds.json', 'r') as f:
-        return json.load(f)
+    """Load risk thresholds from database instead of JSON file"""
+    db = get_db_service()
+    
+    # Fetch all active thresholds from database
+    query = "SELECT ThresholdName, ThresholdValue FROM ThresholdConfig WHERE IsActive = 1"
+    result = db.execute_query(query)
+    
+    # Build config dictionary with default structure
+    config = {
+        'isolation_forest': {},
+        'confidence_calculation': {},
+        'risk_levels': {
+            'safe': 'SAFE',
+            'low': 'LOW',
+            'medium': 'MEDIUM',
+            'high': 'HIGH'
+        }
+    }
+    
+    # Map database threshold names to config structure
+    threshold_mapping = {
+        'IF_Anomaly_High': ('isolation_forest', 'high_risk_threshold'),
+        'IF_Anomaly_Medium': ('isolation_forest', 'medium_risk_threshold'),
+        'IF_Anomaly_Low': ('isolation_forest', 'low_risk_threshold'),
+        'Confidence_AllAgree': ('confidence_calculation', 'all_models_agree'),
+        'Confidence_TwoAgree': ('confidence_calculation', 'two_models_agree'),
+        'Confidence_OneAgrees': ('confidence_calculation', 'one_model_agrees'),
+        'Confidence_HighRiskBoost': ('confidence_calculation', 'high_risk_boost'),
+    }
+    
+    # Populate config from database results
+    if result is not None and not result.empty:
+        for row in result.itertuples():
+            threshold_name = row.ThresholdName
+            threshold_value = float(row.ThresholdValue)
+            
+            if threshold_name in threshold_mapping:
+                section, key = threshold_mapping[threshold_name]
+                config[section][key] = threshold_value
+    
+    return config
 
 
 def calculate_risk_level(risk_score, config):
