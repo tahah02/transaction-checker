@@ -155,6 +155,35 @@ def get_scheduler() -> MLOpsScheduler:
 def start_scheduler():
     scheduler = get_scheduler()
     
+    # Read scheduler times from database
+    try:
+        db = get_db_service()
+        query = """
+            SELECT WeeklyJobDay, WeeklyJobHour, WeeklyJobMinute, 
+                   MonthlyJobDay, MonthlyJobHour, MonthlyJobMinute 
+            FROM RetrainingConfig WHERE ConfigId = 1
+        """
+        result = db.execute_query(query)
+        
+        if result is not None and not result.empty:
+            weekly_day = int(result['WeeklyJobDay'].values[0])
+            weekly_hour = int(result['WeeklyJobHour'].values[0])
+            weekly_minute = int(result['WeeklyJobMinute'].values[0])
+            
+            monthly_day = int(result['MonthlyJobDay'].values[0])
+            monthly_hour = int(result['MonthlyJobHour'].values[0])
+            monthly_minute = int(result['MonthlyJobMinute'].values[0])
+        else:
+            # Fallback to defaults if query fails
+            weekly_day, weekly_hour, weekly_minute = 0, 2, 0
+            monthly_day, monthly_hour, monthly_minute = 1, 3, 0
+            logger.warning("Could not read scheduler config from database, using defaults")
+    except Exception as e:
+        logger.error(f"Error reading scheduler config from database: {e}")
+        # Fallback to defaults
+        weekly_day, weekly_hour, weekly_minute = 0, 2, 0
+        monthly_day, monthly_hour, monthly_minute = 1, 3, 0
+    
     scheduler.scheduler.add_job(
         func=check_and_update_schedule,
         trigger="interval",
@@ -162,8 +191,8 @@ def start_scheduler():
         id='config_checker'
     )
     
-    scheduler.add_weekly_job(day_of_week=0, hour=2, minute=0)
-    scheduler.add_monthly_job(day=1, hour=3, minute=0)
+    scheduler.add_weekly_job(day_of_week=weekly_day, hour=weekly_hour, minute=weekly_minute)
+    scheduler.add_monthly_job(day=monthly_day, hour=monthly_hour, minute=monthly_minute)
     
     scheduler.start()
 

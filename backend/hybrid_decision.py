@@ -8,14 +8,19 @@ def load_risk_config():
     """Load risk thresholds from database instead of JSON file"""
     db = get_db_service()
     
-    # Fetch all active thresholds from database
-    query = "SELECT ThresholdName, ThresholdValue FROM ThresholdConfig WHERE IsActive = 1"
-    result = db.execute_query(query)
-    
-    # Build config dictionary with default structure
+    # Build config dictionary with default structure and defaults
     config = {
-        'isolation_forest': {},
-        'confidence_calculation': {},
+        'isolation_forest': {
+            'high_risk_threshold': 0.85,
+            'medium_risk_threshold': 0.65,
+            'low_risk_threshold': 0.45
+        },
+        'confidence_calculation': {
+            'all_models_agree': 0.95,
+            'two_models_agree': 0.75,
+            'one_model_agrees': 0.50,
+            'high_risk_boost': 0.15
+        },
         'risk_levels': {
             'safe': 'SAFE',
             'low': 'LOW',
@@ -35,15 +40,23 @@ def load_risk_config():
         'Confidence_HighRiskBoost': ('confidence_calculation', 'high_risk_boost'),
     }
     
-    # Populate config from database results
-    if result is not None and not result.empty:
-        for row in result.itertuples():
-            threshold_name = row.ThresholdName
-            threshold_value = float(row.ThresholdValue)
-            
-            if threshold_name in threshold_mapping:
-                section, key = threshold_mapping[threshold_name]
-                config[section][key] = threshold_value
+    try:
+        # Fetch all active thresholds from database
+        query = "SELECT ThresholdName, ThresholdValue FROM ThresholdConfig WHERE IsActive = 1"
+        result = db.execute_query(query)
+        
+        # Populate config from database results
+        if result is not None and not result.empty:
+            for row in result.itertuples():
+                threshold_name = row.ThresholdName
+                threshold_value = float(row.ThresholdValue)
+                
+                if threshold_name in threshold_mapping:
+                    section, key = threshold_mapping[threshold_name]
+                    config[section][key] = threshold_value
+    except Exception as e:
+        # Log error but continue with defaults
+        print(f"Warning: Could not load thresholds from database: {e}. Using defaults.")
     
     return config
 

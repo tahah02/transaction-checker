@@ -162,7 +162,13 @@ CREATE TABLE RetrainingConfig (
     LastRun DATETIME,
     NextRun DATETIME,
     CreatedAt DATETIME DEFAULT GETDATE(),
-    UpdatedAt DATETIME DEFAULT GETDATE()
+    UpdatedAt DATETIME DEFAULT GETDATE(),
+    WeeklyJobDay INT DEFAULT 0,
+    WeeklyJobHour INT DEFAULT 2,
+    WeeklyJobMinute INT DEFAULT 0,
+    MonthlyJobDay INT DEFAULT 1,
+    MonthlyJobHour INT DEFAULT 3,
+    MonthlyJobMinute INT DEFAULT 0
 )
 
 INSERT INTO RetrainingConfig (Interval, IsEnabled) VALUES ('1W', 1)
@@ -172,6 +178,12 @@ Configuration Options:
 - IsEnabled: 1 (enabled) or 0 (disabled)
 - LastRun: Timestamp of last training
 - NextRun: Estimated next training time
+- WeeklyJobDay: Day of week (0=Monday, 1=Tuesday, ..., 6=Sunday)
+- WeeklyJobHour: Hour (0-23)
+- WeeklyJobMinute: Minute (0-59)
+- MonthlyJobDay: Day of month (1-31)
+- MonthlyJobHour: Hour (0-23)
+- MonthlyJobMinute: Minute (0-59)
 
 Dynamic Configuration
 
