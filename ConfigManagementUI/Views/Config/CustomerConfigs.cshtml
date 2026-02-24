@@ -1,0 +1,41 @@
+@model List<CustomerAccountTransferTypeConfig>
+
+@{
+    ViewData["Title"] = "Customer Configurations";
+}
+
+<div class="container-fluid mt-4">
+    <h1>Customer Account Transfer Type Configurations</h1>
+    
+    <table class="table table-striped table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>Customer ID</th>
+                <th>Account No</th>
+                <th>Transfer Type</th>
+                <th>Parameter</th>
+                <th>Value</th>
+                <th>Enabled</th>
+                <th>Active</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var config in Model)
+            {
+                <tr>
+                    <td>@config.CustomerID</td>
+                    <td>@config.AccountNo</td>
+                    <td>@config.TransferType</td>
+                    <td>@config.ParameterName</td>
+                    <td>@config.ParameterValue</td>
+                    <td>
+                        <input type="checkbox" @(config.IsEnabled == true ? "checked" : "") disabled />
+                    </td>
+                    <td>
+                        <input type="checkbox" @(config.IsActive == true ? "checked" : "") disabled />
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
