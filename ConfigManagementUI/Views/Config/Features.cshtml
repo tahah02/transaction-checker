@@ -33,8 +33,8 @@
                     <td>@feature.Version</td>
                     <td>@feature.Description</td>
                     <td>
-                        <span class="badge bg-@(feature.IsActive ? "success" : "danger")">
-                            @(feature.IsActive ? "Active" : "Inactive")
+                        <span class="badge bg-@(feature.IsEnabled && feature.IsActive ? "success" : "danger")">
+                            @(feature.IsEnabled && feature.IsActive ? "Active" : "Disabled")
                         </span>
                     </td>
                     <td>
