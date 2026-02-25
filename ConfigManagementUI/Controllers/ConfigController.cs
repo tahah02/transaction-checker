@@ -64,7 +64,7 @@ namespace ConfigManagementUI.Controllers
 
         public async Task<IActionResult> Scheduler()
         {
-            var config = await _context.RetrainingConfig.FirstOrDefaultAsync();
+            var config = await _context.RetrainingConfig.OrderByDescending(x => x.ConfigId).FirstOrDefaultAsync();
             if (config == null)
                 return NotFound();
 
@@ -179,23 +179,37 @@ namespace ConfigManagementUI.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> UpdateScheduler(RetrainingConfigViewModel model)
+        public async Task<IActionResult> UpdateScheduler([FromBody] RetrainingConfigViewModel model)
         {
-            var config = await _context.RetrainingConfig.FindAsync(model.ConfigId);
-            if (config == null)
-                return NotFound();
+            try
+            {
+                _logger.LogInformation($"UpdateScheduler called with ConfigId: {model.ConfigId}");
+                
+                var config = await _context.RetrainingConfig.FindAsync(model.ConfigId);
+                if (config == null)
+                {
+                    _logger.LogWarning($"Config not found for ConfigId: {model.ConfigId}");
+                    return NotFound();
+                }
 
-            config.IsEnabled = model.IsEnabled;
-            config.WeeklyJobDay = model.WeeklyJobDay;
-            config.WeeklyJobHour = model.WeeklyJobHour;
-            config.WeeklyJobMinute = model.WeeklyJobMinute;
-            config.MonthlyJobDay = model.MonthlyJobDay;
-            config.MonthlyJobHour = model.MonthlyJobHour;
-            config.MonthlyJobMinute = model.MonthlyJobMinute;
-            config.UpdatedAt = DateTime.Now;
+                config.IsEnabled = model.IsEnabled;
+                config.WeeklyJobDay = model.WeeklyJobDay ?? 0;
+                config.WeeklyJobHour = model.WeeklyJobHour ?? 0;
+                config.WeeklyJobMinute = model.WeeklyJobMinute ?? 0;
+                config.MonthlyJobDay = model.MonthlyJobDay ?? 1;
+                config.MonthlyJobHour = model.MonthlyJobHour ?? 0;
+                config.MonthlyJobMinute = model.MonthlyJobMinute ?? 0;
+                config.UpdatedAt = DateTime.Now;
 
-            await _context.SaveChangesAsync();
-            return Ok(new { success = true });
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Configuration saved successfully");
+                return Ok(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error updating scheduler: {ex.Message}");
+                return BadRequest(new { success = false, message = ex.Message });
+            }
         }
     }
 }

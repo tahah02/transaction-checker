@@ -7,16 +7,16 @@ namespace ConfigManagementUI.Models.ViewModels
         public bool IsEnabled { get; set; }
         public DateTime? LastRun { get; set; }
         public DateTime? NextRun { get; set; }
-        public int WeeklyJobDay { get; set; }
-        public int WeeklyJobHour { get; set; }
-        public int WeeklyJobMinute { get; set; }
-        public int MonthlyJobDay { get; set; }
-        public int MonthlyJobHour { get; set; }
-        public int MonthlyJobMinute { get; set; }
+        public int? WeeklyJobDay { get; set; }
+        public int? WeeklyJobHour { get; set; }
+        public int? WeeklyJobMinute { get; set; }
+        public int? MonthlyJobDay { get; set; }
+        public int? MonthlyJobHour { get; set; }
+        public int? MonthlyJobMinute { get; set; }
         
-        public string WeeklyJobDayName => GetDayName(WeeklyJobDay);
-        public string WeeklyJobTime => $"{WeeklyJobHour:D2}:{WeeklyJobMinute:D2}";
-        public string MonthlyJobTime => $"{MonthlyJobHour:D2}:{MonthlyJobMinute:D2}";
+        public string WeeklyJobDayName => GetDayName(WeeklyJobDay ?? 0);
+        public string WeeklyJobTime => $"{(WeeklyJobHour ?? 0):D2}:{(WeeklyJobMinute ?? 0):D2}";
+        public string MonthlyJobTime => $"{(MonthlyJobHour ?? 0):D2}:{(MonthlyJobMinute ?? 0):D2}";
         
         private string GetDayName(int day)
         {

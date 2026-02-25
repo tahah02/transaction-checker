@@ -9,45 +9,46 @@
     
     <div class="card">
         <div class="card-body">
-            <form method="post" action="@Url.Action("UpdateScheduler")">
+            <form id="schedulerForm" method="post" action="@Url.Action("UpdateScheduler", "Config")">
+                <input type="hidden" name="ConfigId" value="@Model.ConfigId" />
                 <div class="row">
                     <div class="col-md-6">
                         <h5>Weekly Job</h5>
                         <div class="mb-3">
-                            <label class="form-label">Day</label>
-                            <select class="form-control" name="WeeklyJobDay">
-                                <option value="0">Monday</option>
-                                <option value="1">Tuesday</option>
-                                <option value="2">Wednesday</option>
-                                <option value="3">Thursday</option>
-                                <option value="4">Friday</option>
-                                <option value="5">Saturday</option>
-                                <option value="6">Sunday</option>
+                            <label class="form-label" for="weeklyJobDay">Day</label>
+                            <select class="form-control" id="weeklyJobDay" name="WeeklyJobDay" value="@Model.WeeklyJobDay">
+                                <option value="0" @(Model.WeeklyJobDay == 0 ? "selected" : "")>Monday</option>
+                                <option value="1" @(Model.WeeklyJobDay == 1 ? "selected" : "")>Tuesday</option>
+                                <option value="2" @(Model.WeeklyJobDay == 2 ? "selected" : "")>Wednesday</option>
+                                <option value="3" @(Model.WeeklyJobDay == 3 ? "selected" : "")>Thursday</option>
+                                <option value="4" @(Model.WeeklyJobDay == 4 ? "selected" : "")>Friday</option>
+                                <option value="5" @(Model.WeeklyJobDay == 5 ? "selected" : "")>Saturday</option>
+                                <option value="6" @(Model.WeeklyJobDay == 6 ? "selected" : "")>Sunday</option>
                             </select>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Hour</label>
-                            <input type="number" class="form-control" name="WeeklyJobHour" value="@Model.WeeklyJobHour" min="0" max="23" />
+                            <label class="form-label" for="weeklyJobHour">Hour</label>
+                            <input type="number" class="form-control" id="weeklyJobHour" name="WeeklyJobHour" value="@Model.WeeklyJobHour" min="0" max="23" />
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Minute</label>
-                            <input type="number" class="form-control" name="WeeklyJobMinute" value="@Model.WeeklyJobMinute" min="0" max="59" />
+                            <label class="form-label" for="weeklyJobMinute">Minute</label>
+                            <input type="number" class="form-control" id="weeklyJobMinute" name="WeeklyJobMinute" value="@Model.WeeklyJobMinute" min="0" max="59" />
                         </div>
                     </div>
                     
                     <div class="col-md-6">
                         <h5>Monthly Job</h5>
                         <div class="mb-3">
-                            <label class="form-label">Day of Month</label>
-                            <input type="number" class="form-control" name="MonthlyJobDay" value="@Model.MonthlyJobDay" min="1" max="31" />
+                            <label class="form-label" for="monthlyJobDay">Day of Month</label>
+                            <input type="number" class="form-control" id="monthlyJobDay" name="MonthlyJobDay" value="@Model.MonthlyJobDay" min="1" max="31" />
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Hour</label>
-                            <input type="number" class="form-control" name="MonthlyJobHour" value="@Model.MonthlyJobHour" min="0" max="23" />
+                            <label class="form-label" for="monthlyJobHour">Hour</label>
+                            <input type="number" class="form-control" id="monthlyJobHour" name="MonthlyJobHour" value="@Model.MonthlyJobHour" min="0" max="23" />
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Minute</label>
-                            <input type="number" class="form-control" name="MonthlyJobMinute" value="@Model.MonthlyJobMinute" min="0" max="59" />
+                            <label class="form-label" for="monthlyJobMinute">Minute</label>
+                            <input type="number" class="form-control" id="monthlyJobMinute" name="MonthlyJobMinute" value="@Model.MonthlyJobMinute" min="0" max="59" />
                         </div>
                     </div>
                 </div>
@@ -70,4 +71,60 @@
             <h5>Next Run: @(Model.NextRun?.ToString("yyyy-MM-dd HH:mm") ?? "Not scheduled")</h5>
         </div>
     </div>
+
+    <!-- Alert Container -->
+    <div id="alertContainer"></div>
 </div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            $('#schedulerForm').on('submit', function (e) {
+                e.preventDefault();
+                
+                const formData = new FormData(this);
+                const data = {
+                    ConfigId: formData.get('ConfigId'),
+                    WeeklyJobDay: formData.get('WeeklyJobDay'),
+                    WeeklyJobHour: formData.get('WeeklyJobHour'),
+                    WeeklyJobMinute: formData.get('WeeklyJobMinute'),
+                    MonthlyJobDay: formData.get('MonthlyJobDay'),
+                    MonthlyJobHour: formData.get('MonthlyJobHour'),
+                    MonthlyJobMinute: formData.get('MonthlyJobMinute'),
+                    IsEnabled: formData.get('IsEnabled') ? true : false
+                };
+
+                $.ajax({
+                    url: '/Config/UpdateScheduler',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(data),
+                    success: function (response) {
+                        if (response.success) {
+                            showAlert('Configuration saved successfully!', 'success');
+                        } else {
+                            showAlert('Error saving configuration', 'danger');
+                        }
+                    },
+                    error: function (xhr) {
+                        console.log('Error:', xhr.status, xhr.responseText);
+                        showAlert('Error saving configuration', 'danger');
+                    }
+                });
+            });
+
+            function showAlert(message, type) {
+                const alertHtml = `
+                    <div class="alert alert-${type} alert-dismissible fade show mt-3" role="alert">
+                        ${message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                `;
+                $('#alertContainer').html(alertHtml);
+                setTimeout(() => {
+                    $('#alertContainer').fadeOut(() => $('#alertContainer').html(''));
+                }, 3000);
+            }
+        });
+    </script>
+}
