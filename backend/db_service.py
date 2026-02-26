@@ -6,16 +6,16 @@ from typing import Optional, List, Dict, Any
 
 
 try:
-    import pymssql
-    DRIVER_TYPE = 'pymssql'
+    import pyodbc
+    DRIVER_TYPE = 'pyodbc'
     logger = logging.getLogger(__name__)
-    logger.info("Using pymssql driver")
+    logger.info("Using pyodbc driver")
 except ImportError:
     try:
-        import pyodbc
-        DRIVER_TYPE = 'pyodbc'
+        import pymssql
+        DRIVER_TYPE = 'pymssql'
         logger = logging.getLogger(__name__)
-        logger.info("Using pyodbc driver")
+        logger.info("Using pymssql driver")
     except ImportError:
         raise ImportError("Neither pymssql nor pyodbc is installed. Please install one of them.")
 
@@ -48,16 +48,21 @@ class DatabaseService:
             if self.connection:
                 return True
             
-            self.connection = pymssql.connect(
-                server=self.server,
-                port=self.port,
-                database=self.database,
-                user=self.username,
-                password=self.password,
-                timeout=15,
-                login_timeout=15
-            )
-            logger.info("Connected using pymssql with connection pooling")
+            if DRIVER_TYPE == 'pyodbc':
+                conn_str = f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={self.server},{self.port};DATABASE={self.database};UID={self.username};PWD={self.password}"
+                self.connection = pyodbc.connect(conn_str, timeout=15)
+                logger.info("Connected using pyodbc")
+            else:
+                self.connection = pymssql.connect(
+                    server=self.server,
+                    port=self.port,
+                    database=self.database,
+                    user=self.username,
+                    password=self.password,
+                    timeout=15,
+                    login_timeout=15
+                )
+                logger.info("Connected using pymssql with connection pooling")
             return True
         except Exception as e:
             logger.error(f"Connection failed: {e}")

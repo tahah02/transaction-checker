@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
-from .utils import MODEL_FEATURES
+from backend.utils import get_dynamic_model_features
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -41,7 +41,13 @@ class IsolationForestTrainer:
         logger.info("Starting Isolation Forest Training")
 
         df = self.load_data()
-        X = df[MODEL_FEATURES].fillna(0).values
+        
+        dynamic_features = get_dynamic_model_features()
+        
+        available_features = [f for f in dynamic_features if f in df.columns]
+        logger.info(f"Using {len(available_features)} features for training")
+        
+        X = df[available_features].fillna(0).values
         n_samples, n_features = X.shape
 
         self.fit_scaler(X)
@@ -58,22 +64,22 @@ class IsolationForestTrainer:
         self._ensure_dir(self.MODEL_PATH)
         model_data = {
             'model': self.model,
-            'features': MODEL_FEATURES,
+            'features': available_features,
             'contamination': self.contamination,
             'n_estimators': self.n_estimators,
             'trained_at': datetime.now().isoformat()
         }
         joblib.dump(model_data, self.MODEL_PATH)
 
-        # Get some training stats
         predictions = self.model.predict(X_scaled)
         anomaly_count = np.sum(predictions == -1)
         anomaly_rate = anomaly_count / len(predictions)
 
-        logger.info(f"Training done | Anomalies detected: {anomaly_count}/{len(predictions)} ({anomaly_rate:.2%})")
+        logger.info(f"Training done | Anomalies: {anomaly_count}/{len(predictions)} ({anomaly_rate:.2%})")
         return {
             'n_samples': n_samples,
             'n_features': n_features,
+            'feature_list': available_features,
             'anomaly_count': int(anomaly_count),
             'anomaly_rate': float(anomaly_rate),
             'contamination': self.contamination
@@ -96,9 +102,11 @@ def train_isolation_forest():
     trainer = IsolationForestTrainer()
     metrics = trainer.train()
 
-    # Quick validation
     df = trainer.load_data()
-    X = trainer.scaler.transform(df[MODEL_FEATURES].fillna(0).values)
+    dynamic_features = get_dynamic_model_features()
+    available_features = [f for f in dynamic_features if f in df.columns]
+    
+    X = trainer.scaler.transform(df[available_features].fillna(0).values)
     sample = X[:min(1000, len(X))]
     trainer.validate(sample, metrics['anomaly_rate'])
     return metrics

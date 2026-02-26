@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 from sklearn.preprocessing import StandardScaler
 from backend.autoencoder import TransactionAutoencoder
-from .utils import MODEL_FEATURES
+from backend.utils import get_dynamic_model_features
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -43,12 +43,13 @@ class AutoencoderTrainer:
         mean, std = float(errors.mean()), float(errors.std())
         return {'threshold': mean + self.k * std, 'mean': mean, 'std': std, 'k': self.k}
 
-    def save_threshold(self, cfg: Dict[str, Any], n_samples: int, n_features: int):
+    def save_threshold(self, cfg: Dict[str, Any], n_samples: int, n_features: int, feature_list: list):
         self._ensure_dir(self.THRESHOLD_PATH)
         cfg.update({
             'computed_at': datetime.now().isoformat(),
             'n_samples': n_samples,
-            'n_features': n_features
+            'n_features': n_features,
+            'features': feature_list
         })
         json.dump(cfg, open(self.THRESHOLD_PATH, 'w'), indent=2)
 
@@ -56,7 +57,13 @@ class AutoencoderTrainer:
         logger.info("Starting Autoencoder Training")
 
         df = self.load_data()
-        X = df[MODEL_FEATURES].fillna(0).values
+        
+        dynamic_features = get_dynamic_model_features()
+        
+        available_features = [f for f in dynamic_features if f in df.columns]
+        logger.info(f"Using {len(available_features)} features for training")
+        
+        X = df[available_features].fillna(0).values
         n_samples, n_features = X.shape
 
         self.fit_scaler(X)
@@ -73,10 +80,10 @@ class AutoencoderTrainer:
 
         errors = self.autoencoder.compute_reconstruction_error(Xs)
         cfg = self.compute_threshold(errors)
-        self.save_threshold(cfg, n_samples, n_features)
+        self.save_threshold(cfg, n_samples, n_features, available_features)
 
         logger.info(f"Training done | Threshold={cfg['threshold']:.6f}")
-        return {**cfg, 'n_samples': n_samples, 'n_features': n_features}
+        return {**cfg, 'n_samples': n_samples, 'n_features': n_features, 'feature_list': available_features}
 
     def validate(self, X_scaled: np.ndarray, expected_errors: np.ndarray, tol=0.01):
         ae = TransactionAutoencoder.load(self.MODEL_PATH)
@@ -92,7 +99,10 @@ def train_autoencoder():
     metrics = trainer.train()
 
     df = trainer.load_data()
-    X = trainer.scaler.transform(df[MODEL_FEATURES].fillna(0).values)
+    dynamic_features = get_dynamic_model_features()
+    available_features = [f for f in dynamic_features if f in df.columns]
+    
+    X = trainer.scaler.transform(df[available_features].fillna(0).values)
     sample = X[:min(1000, len(X))]
     trainer.validate(sample, trainer.autoencoder.compute_reconstruction_error(sample))
     return metrics

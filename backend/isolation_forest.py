@@ -14,12 +14,15 @@ class IsolationForestInference:
     def __init__(self):
         self.model = None
         self.scaler = None
+        self.features = None
 
     def load(self) -> bool:
         try:
             model_data = joblib.load(self.MODEL_PATH)
             self.model = model_data['model'] if isinstance(model_data, dict) else model_data
+            self.features = model_data.get('features', MODEL_FEATURES) if isinstance(model_data, dict) else MODEL_FEATURES
             self.scaler = joblib.load(self.SCALER_PATH)
+            logger.info(f"Loaded model with {len(self.features)} features")
             return True
         except Exception as e:
             logger.error(f"Isolation Forest load failed: {e}")
@@ -29,13 +32,13 @@ class IsolationForestInference:
         if self.model is None and not self.load():
             return None
 
-        missing = [f for f in MODEL_FEATURES if f not in features]
+        missing = [f for f in self.features if f not in features]
         if missing:
             logger.warning(f"Missing features: {missing[:5]}...")
             return None
 
         try:
-            x = np.array([[features.get(f, 0) for f in MODEL_FEATURES]], dtype=np.float32)
+            x = np.array([[features.get(f, 0) for f in self.features]], dtype=np.float32)
             x_scaled = self.scaler.transform(x)
             prediction = self.model.predict(x_scaled)[0]
             anomaly_score = self.model.decision_function(x_scaled)[0]

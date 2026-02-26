@@ -32,6 +32,46 @@ MODEL_FEATURES = [
     'geo_anomaly_flag','is_new_beneficiary','beneficiary_txn_count_30d'
 ]
 
+def get_dynamic_model_features():
+    from backend.db_service import get_db_service
+    
+    try:
+        db = get_db_service()
+        if not db.is_connected():
+            db.connect()
+        
+        enabled_features = db.get_enabled_features()
+        
+        if not enabled_features:
+            return MODEL_FEATURES
+        
+        base_features = ['transaction_amount']
+        
+        all_possible_features = [
+            'flag_amount', 'transfer_type_encoded', 'transfer_type_risk',
+            'channel_encoded', 'deviation_from_avg', 'amount_to_max_ratio',
+            'rolling_std', 'transaction_velocity', 'weekly_total',
+            'weekly_txn_count', 'weekly_avg_amount', 'weekly_deviation',
+            'amount_vs_weekly_avg', 'current_month_spending', 'monthly_txn_count',
+            'monthly_avg_amount', 'monthly_deviation', 'amount_vs_monthly_avg',
+            'hourly_total', 'hourly_count', 'daily_total', 'daily_count',
+            'hour', 'day_of_week', 'is_weekend', 'is_night',
+            'time_since_last', 'recent_burst', 'txn_count_30s',
+            'txn_count_10min', 'txn_count_1hour', 'user_avg_amount',
+            'user_std_amount', 'user_max_amount', 'user_txn_frequency',
+            'intl_ratio', 'user_high_risk_txn_ratio',
+            'user_multiple_accounts_flag', 'cross_account_transfer_ratio',
+            'geo_anomaly_flag', 'is_new_beneficiary', 'beneficiary_txn_count_30d'
+        ]
+        
+        dynamic_features = base_features + [f for f in all_possible_features if f in enabled_features]
+        
+        return dynamic_features
+        
+    except Exception as e:
+        print(f"Error fetching dynamic features: {e}")
+        return MODEL_FEATURES
+
 def load_model():
     try:
         model_path = get_model_path()

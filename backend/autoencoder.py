@@ -77,12 +77,16 @@ class AutoencoderInference:
         self.model = None
         self.scaler = None
         self.threshold = None
+        self.features = None
 
     def load(self) -> bool:
         try:
             self.model = TransactionAutoencoder.load(self.MODEL_PATH)
             self.scaler = joblib.load(self.SCALER_PATH)
-            self.threshold = json.load(open(self.THRESHOLD_PATH))['threshold']
+            threshold_data = json.load(open(self.THRESHOLD_PATH))
+            self.threshold = threshold_data['threshold']
+            self.features = threshold_data.get('features', MODEL_FEATURES)
+            logger.info(f"Loaded autoencoder with {len(self.features)} features")
             return True
         except Exception as e:
             logger.error(f"Autoencoder load failed: {e}")
@@ -92,24 +96,21 @@ class AutoencoderInference:
         if self.model is None and not self.load():
             return None
 
-        missing = [f for f in MODEL_FEATURES if f not in features]
+        missing = [f for f in self.features if f not in features]
         if missing:
             logger.warning(f"Missing features: {missing[:5]}...")
             return None
 
         try:
-            # Build feature array with proper default handling
             feature_values = []
-            for f in MODEL_FEATURES:
+            for f in self.features:
                 val = features.get(f, 0.0)
-                # Replace None with 0.0
                 if val is None or (isinstance(val, float) and not np.isfinite(val)):
                     val = 0.0
                 feature_values.append(float(val))
             
             x = np.array([feature_values], dtype=np.float32)
             
-            # Check for NaN/Inf in input
             if not np.all(np.isfinite(x)):
                 logger.error(f"Invalid input features: {x}")
                 return {
@@ -121,7 +122,6 @@ class AutoencoderInference:
             
             x = self.scaler.transform(x)
             
-            # Check after scaling
             if not np.all(np.isfinite(x)):
                 logger.error(f"Invalid scaled features: {x}")
                 return {
