@@ -64,7 +64,7 @@ namespace ConfigManagementUI.Controllers
 
         public async Task<IActionResult> Scheduler()
         {
-            var config = await _context.RetrainingConfig.FirstOrDefaultAsync();
+            var config = await _context.RetrainingConfig.OrderByDescending(x => x.ConfigId).FirstOrDefaultAsync();
             if (config == null)
                 return NotFound();
 
@@ -103,17 +103,6 @@ namespace ConfigManagementUI.Controllers
                 .ToListAsync();
 
             return View(runs);
-        }
-
-        public async Task<IActionResult> CustomerConfigs(string customerId = null)
-        {
-            var query = _context.CustomerAccountTransferTypeConfig.AsQueryable();
-
-            if (!string.IsNullOrEmpty(customerId))
-                query = query.Where(c => c.CustomerID == customerId);
-
-            var configs = await query.ToListAsync();
-            return View(configs);
         }
 
         [HttpPost]
@@ -179,13 +168,17 @@ namespace ConfigManagementUI.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> UpdateScheduler(RetrainingConfigViewModel model)
+        public async Task<IActionResult> UpdateScheduler(RetrainingConfigViewModel model, bool IsEnabled = false)
         {
             var config = await _context.RetrainingConfig.FindAsync(model.ConfigId);
             if (config == null)
                 return NotFound();
 
-            config.IsEnabled = model.IsEnabled;
+            // Log incoming values
+            Console.WriteLine($"Received - IsEnabled: {IsEnabled}, Interval: {model.Interval}, Day: {model.WeeklyJobDay}, Hour: {model.WeeklyJobHour}, Minute: {model.WeeklyJobMinute}");
+
+            config.IsEnabled = IsEnabled;
+            config.Interval = model.Interval;
             config.WeeklyJobDay = model.WeeklyJobDay;
             config.WeeklyJobHour = model.WeeklyJobHour;
             config.WeeklyJobMinute = model.WeeklyJobMinute;
@@ -194,8 +187,200 @@ namespace ConfigManagementUI.Controllers
             config.MonthlyJobMinute = model.MonthlyJobMinute;
             config.UpdatedAt = DateTime.Now;
 
+            // Calculate Next Run time for Weekly Job
+            if (config.IsEnabled && config.WeeklyJobDay.HasValue && config.WeeklyJobHour.HasValue && config.WeeklyJobMinute.HasValue)
+            {
+                var now = DateTime.Now;
+                var targetDayOfWeek = (DayOfWeek)config.WeeklyJobDay.Value;
+                var currentDayOfWeek = now.DayOfWeek;
+                
+                Console.WriteLine($"Calculating NextRun - Current: {now}, Target Day: {targetDayOfWeek}");
+                
+                // Calculate days until target day
+                int daysUntilTarget = ((int)targetDayOfWeek - (int)currentDayOfWeek + 7) % 7;
+                
+                // If it's the same day, check if time has passed
+                if (daysUntilTarget == 0)
+                {
+                    var targetTime = new TimeSpan(config.WeeklyJobHour.Value, config.WeeklyJobMinute.Value, 0);
+                    if (now.TimeOfDay >= targetTime)
+                    {
+                        // Time has passed today, schedule for next week
+                        daysUntilTarget = 7;
+                    }
+                }
+                
+                // Calculate next run date and time
+                var nextRunDate = now.Date.AddDays(daysUntilTarget);
+                config.NextRun = new DateTime(
+                    nextRunDate.Year, 
+                    nextRunDate.Month, 
+                    nextRunDate.Day, 
+                    config.WeeklyJobHour.Value, 
+                    config.WeeklyJobMinute.Value, 
+                    0
+                );
+                
+                Console.WriteLine($"NextRun calculated: {config.NextRun}");
+            }
+            else
+            {
+                config.NextRun = null;
+                Console.WriteLine($"NextRun set to null - IsEnabled: {config.IsEnabled}, HasDay: {config.WeeklyJobDay.HasValue}, HasHour: {config.WeeklyJobHour.HasValue}, HasMinute: {config.WeeklyJobMinute.HasValue}");
+            }
+
             await _context.SaveChangesAsync();
-            return Ok(new { success = true });
+            Console.WriteLine("Changes saved to database");
+            
+            TempData["SuccessMessage"] = "Configuration saved successfully!";
+            return RedirectToAction("Scheduler");
+        }
+
+        public IActionResult CustomerConfigs()
+        {
+            return View();
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> SearchCustomer(string customerId)
+        {
+            var configs = await _context.CustomerAccountTransferTypeConfig
+                .Where(c => c.CustomerID == customerId)
+                .GroupBy(c => new { c.CustomerID, c.AccountNo, c.TransferType })
+                .Select(g => new CustomerConfigListViewModel
+                {
+                    CustomerID = g.Key.CustomerID,
+                    AccountNo = g.Key.AccountNo,
+                    TransferType = g.Key.TransferType,
+                    EnabledChecksCount = g.Count(x => x.IsEnabled == true),
+                    HasConfig = true
+                })
+                .ToListAsync();
+
+            ViewBag.SearchType = "Customer";
+            ViewBag.SearchValue = customerId;
+            return View("CustomerConfigResults", configs);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> SearchAccount(string accountNo)
+        {
+            var configs = await _context.CustomerAccountTransferTypeConfig
+                .Where(c => c.AccountNo == accountNo)
+                .GroupBy(c => new { c.CustomerID, c.AccountNo, c.TransferType })
+                .Select(g => new CustomerConfigListViewModel
+                {
+                    CustomerID = g.Key.CustomerID,
+                    AccountNo = g.Key.AccountNo,
+                    TransferType = g.Key.TransferType,
+                    EnabledChecksCount = g.Count(x => x.IsEnabled == true),
+                    HasConfig = true
+                })
+                .ToListAsync();
+
+            ViewBag.SearchType = "Account";
+            ViewBag.SearchValue = accountNo;
+            return View("CustomerConfigResults", configs);
+        }
+
+        public async Task<IActionResult> CustomerConfigDetail(string customerId, string accountNo, string transferType)
+        {
+            var configs = await _context.CustomerAccountTransferTypeConfig
+                .Where(c => c.CustomerID == customerId && c.AccountNo == accountNo && c.TransferType == transferType)
+                .ToListAsync();
+
+            var viewModel = new CustomerConfigDetailViewModel
+            {
+                CustomerID = customerId,
+                AccountNo = accountNo,
+                TransferType = transferType,
+                IsNewConfig = !configs.Any()
+            };
+
+            foreach (var config in configs)
+            {
+                switch (config.ParameterName)
+                {
+                    case "velocity_check_10min":
+                        viewModel.VelocityCheck10Min = config.IsEnabled ?? false;
+                        break;
+                    case "velocity_check_1hour":
+                        viewModel.VelocityCheck1Hour = config.IsEnabled ?? false;
+                        break;
+                    case "monthly_spending_check":
+                        viewModel.MonthlySpendingCheck = config.IsEnabled ?? false;
+                        break;
+                    case "new_beneficiary_check":
+                        viewModel.NewBeneficiaryCheck = config.IsEnabled ?? false;
+                        break;
+                    case "isolation_forest_check":
+                        viewModel.IsolationForestCheck = config.IsEnabled ?? false;
+                        break;
+                    case "autoencoder_check":
+                        viewModel.AutoencoderCheck = config.IsEnabled ?? false;
+                        break;
+                }
+            }
+
+            return View(viewModel);
+        }
+
+        public IActionResult CreateCustomerConfig(string customerId, string? accountNo)
+        {
+            var viewModel = new CustomerConfigDetailViewModel
+            {
+                CustomerID = customerId,
+                AccountNo = accountNo,
+                IsNewConfig = true,
+                VelocityCheck10Min = true,
+                VelocityCheck1Hour = true,
+                MonthlySpendingCheck = true,
+                NewBeneficiaryCheck = true,
+                IsolationForestCheck = true,
+                AutoencoderCheck = true
+            };
+
+            return View("CustomerConfigDetail", viewModel);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> SaveCustomerConfig(CustomerConfigDetailViewModel model, bool VelocityCheck10Min = false, bool VelocityCheck1Hour = false, bool MonthlySpendingCheck = false, bool NewBeneficiaryCheck = false, bool IsolationForestCheck = false, bool AutoencoderCheck = false)
+        {
+            var existing = _context.CustomerAccountTransferTypeConfig
+                .Where(c => c.CustomerID == model.CustomerID && c.AccountNo == model.AccountNo && c.TransferType == model.TransferType);
+
+            _context.CustomerAccountTransferTypeConfig.RemoveRange(existing);
+
+            var now = DateTime.Now;
+            var configs = new List<CustomerAccountTransferTypeConfig>
+            {
+                new() { CustomerID = model.CustomerID, AccountNo = model.AccountNo, TransferType = model.TransferType, ParameterName = "velocity_check_10min", IsEnabled = VelocityCheck10Min, CreatedAt = now, UpdatedAt = now },
+                new() { CustomerID = model.CustomerID, AccountNo = model.AccountNo, TransferType = model.TransferType, ParameterName = "velocity_check_1hour", IsEnabled = VelocityCheck1Hour, CreatedAt = now, UpdatedAt = now },
+                new() { CustomerID = model.CustomerID, AccountNo = model.AccountNo, TransferType = model.TransferType, ParameterName = "monthly_spending_check", IsEnabled = MonthlySpendingCheck, CreatedAt = now, UpdatedAt = now },
+                new() { CustomerID = model.CustomerID, AccountNo = model.AccountNo, TransferType = model.TransferType, ParameterName = "new_beneficiary_check", IsEnabled = NewBeneficiaryCheck, CreatedAt = now, UpdatedAt = now },
+                new() { CustomerID = model.CustomerID, AccountNo = model.AccountNo, TransferType = model.TransferType, ParameterName = "isolation_forest_check", IsEnabled = IsolationForestCheck, CreatedAt = now, UpdatedAt = now },
+                new() { CustomerID = model.CustomerID, AccountNo = model.AccountNo, TransferType = model.TransferType, ParameterName = "autoencoder_check", IsEnabled = AutoencoderCheck, CreatedAt = now, UpdatedAt = now }
+            };
+
+            _context.CustomerAccountTransferTypeConfig.AddRange(configs);
+            await _context.SaveChangesAsync();
+
+            TempData["SuccessMessage"] = "Configuration saved successfully!";
+            TempData["SavedCustomerId"] = model.CustomerID;
+            return RedirectToAction("CustomerConfigs");
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> DeleteCustomerConfig(string customerId, string accountNo, string transferType)
+        {
+            var configs = _context.CustomerAccountTransferTypeConfig
+                .Where(c => c.CustomerID == customerId && c.AccountNo == accountNo && c.TransferType == transferType);
+
+            _context.CustomerAccountTransferTypeConfig.RemoveRange(configs);
+            await _context.SaveChangesAsync();
+
+            TempData["SuccessMessage"] = "Configuration deleted successfully!";
+            return RedirectToAction("CustomerConfigs");
         }
     }
 }
