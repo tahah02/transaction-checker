@@ -1,5 +1,4 @@
-FROM mcr.microsoft.com/windows/servercore:ltsc2019
-
+FROM python:3.10-windowsservercore-1809
 # Set working directory
 WORKDIR C:\app
 
