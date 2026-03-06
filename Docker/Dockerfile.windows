@@ -1,3 +1,10 @@
+FROM mcr.microsoft.com/dotnet/sdk:9.0-windowsservercore-ltsc2019 AS dotnet-builder
+
+WORKDIR C:\src
+COPY ConfigManagementUI\ .
+RUN dotnet build "ConfigManagementUI.csproj" -c Release -o C:\app\build
+RUN dotnet publish "ConfigManagementUI.csproj" -c Release -o C:\app\publish
+
 FROM mcr.microsoft.com/windows/servercore:ltsc2019
 
 WORKDIR C:\app
@@ -21,8 +28,10 @@ RUN powershell -Command pip install --no-cache-dir pymssql==2.2.11
 COPY api\ .\api\
 COPY backend\ .\backend\
 
-EXPOSE 8000
+COPY --from=dotnet-builder C:\app\publish .\frontend
+
+EXPOSE 8000 5202
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 CMD powershell -Command "try { $response = Invoke-WebRequest -Uri 'http://localhost:8000/api/health' -UseBasicParsing; exit 0 } catch { exit 1 }"
 
-ENTRYPOINT ["powershell", "-Command", "uvicorn api:app --host 0.0.0.0 --port 8000 --workers 1"]
+ENTRYPOINT ["powershell", "-Command", "Start-Process -NoNewWindow -FilePath 'uvicorn' -ArgumentList 'api:app --host 0.0.0.0 --port 8000 --workers 1'; cd frontend; dotnet ConfigManagementUI.dll --urls http://0.0.0.0:5202"]
