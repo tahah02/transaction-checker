@@ -8,6 +8,8 @@ services:
     container_name: fraud-detection-api
     ports:
       - "8000:8000"
+      - "5202:5202"
+
     environment:
       # Database Configuration
       - DB_SERVER=10.112.32.4
