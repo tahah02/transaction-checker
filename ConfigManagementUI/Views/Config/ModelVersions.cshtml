@@ -32,6 +32,8 @@
                     <th>Precision</th>
                     <th>Recall</th>
                     <th>F1 Score</th>
+                    <th>Training Data Size</th>
+                    <th>Model Size</th>
                     <th>Deployed</th>
                 </tr>
             </thead>
@@ -48,11 +50,10 @@
                         </td>
                         <td>@(item.Accuracy?.ToString("P2") ?? "N/A")</td>
                         <td>@(item.Precision?.ToString("P2") ?? "N/A")</td>
-                        <td>@(item.Recall?.ToString("P2") ?? "N/A")</td>
-                        <td>@(item.F1Score?.ToString("P2") ?? "N/A")</td>
                         <td>@(item.TrainingDataSize?.ToString("N0") ?? "N/A")</td>
-                    <td>@(item.ModelSize?.ToString("N0") ?? "N/A")</td>
-                    </tr>
+                        <td>@(item.ModelSize?.ToString("N0") ?? "N/A")</td>
+                        <td>@(item.DeployedAt?.ToString("yyyy-MM-dd") ?? "Not deployed")</td>d>
+                        <td>@(item.DeployedAt?.ToString("yyyy-MM-dd") ?? "Not deployed")</td>
                 }
             </tbody>
         </table>
