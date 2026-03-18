@@ -97,6 +97,11 @@ class RetrainingPipeline:
                 ae_metrics
             )
             
+            # Database entries add karo
+            self._save_model_to_database(version, "Isolation Forest", if_metrics)
+            self._save_model_to_database(version, "Autoencoder", ae_metrics)
+            self._update_active_version(version)
+            
             logger.info(f"Models saved for version {version}")
             return True
         except Exception as e:
@@ -121,6 +126,64 @@ class RetrainingPipeline:
             logger.info(f"Training run logged for version {version}")
         except Exception as e:
             logger.warning(f"Could not log training run: {e}")
+    
+    def _save_model_to_database(self, version: str, model_name: str, metrics: Dict):
+        try:
+            if not self.db.is_connected():
+                self.db.connect()
+            
+            model_type = model_name.lower().replace(' ', '_')
+            model_path = f"backend/model/versions/{version}/{model_type}/model.pkl"
+            scaler_path = f"backend/model/versions/{version}/{model_type}/scaler.pkl"
+            threshold_path = f"backend/model/versions/{version}/{model_type}/threshold.json" if model_type == "autoencoder" else None
+            
+            query = """
+            INSERT INTO ModelVersionConfig 
+            (ModelName, VersionNumber, ModelPath, ScalerPath, ThresholdPath, IsActive, 
+             Accuracy, Precision, Recall, F1Score, CreatedAt, TrainingDataSize, ModelSize, CreatedBy, Notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, GETDATE(), %s, %s, %s, %s)
+            """
+            
+            params = [
+                model_name, 
+                version, 
+                model_path, 
+                scaler_path,
+                threshold_path,
+                0,
+                metrics.get('accuracy'),
+                metrics.get('precision'), 
+                metrics.get('recall'), 
+                metrics.get('f1_score'),
+                metrics.get('n_samples', 0),
+                0,
+                'System',
+                f'Auto-generated from retraining pipeline v{version}'
+            ]
+            
+            self.db.execute_non_query(query, params)
+            logger.info(f"Database entry created for {model_name} version {version}")
+            
+        except Exception as e:
+            logger.error(f"Error saving model to database: {e}")
+            logger.error(f"Query params: {params if 'params' in locals() else 'N/A'}")
+    
+    def _update_active_version(self, version: str):
+        try:
+            if not self.db.is_connected():
+                self.db.connect()
+            
+            self.db.execute_non_query("UPDATE ModelVersionConfig SET IsActive = 0")
+            
+            self.db.execute_non_query(
+                "UPDATE ModelVersionConfig SET IsActive = 1, DeployedAt = GETDATE() WHERE VersionNumber = %s", 
+                [version]
+            )
+            
+            logger.info(f"Version {version} set as active")
+            
+        except Exception as e:
+            logger.error(f"Error updating active version: {e}")
     
     def run(self, since_date: Optional[datetime] = None) -> bool:
         logger.info("\n" + "="*60)

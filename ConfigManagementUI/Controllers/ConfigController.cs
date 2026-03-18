@@ -88,11 +88,34 @@ namespace ConfigManagementUI.Controllers
 
         public async Task<IActionResult> ModelVersions()
         {
-            var models = await _context.ModelVersionConfig
-                .OrderByDescending(m => m.CreatedAt)
-                .ToListAsync();
+            try
+            {
+                _logger.LogInformation("Attempting to fetch ModelVersions from database");
+                
+                // Test database connection
+                var canConnect = await _context.Database.CanConnectAsync();
+                _logger.LogInformation($"Database connection test: {canConnect}");
+                
+                if (!canConnect)
+                {
+                    _logger.LogError("Cannot connect to database");
+                    ViewBag.ErrorMessage = "Database connection failed";
+                    return View(new List<ModelVersionConfig>());
+                }
 
-            return View(models);
+                var models = await _context.ModelVersionConfig
+                    .OrderByDescending(m => m.CreatedAt)
+                    .ToListAsync();
+
+                _logger.LogInformation($"Successfully fetched {models.Count} model versions");
+                return View(models);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while fetching ModelVersions");
+                ViewBag.ErrorMessage = $"Error: {ex.Message}";
+                return View(new List<ModelVersionConfig>());
+            }
         }
 
         public async Task<IActionResult> TrainingRuns()

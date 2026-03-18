@@ -18,8 +18,8 @@ namespace ConfigManagementUI.Models.DbModels
         public DateTime? RetiredAt { get; set; }
         public string? CreatedBy { get; set; }
         public string? DeployedBy { get; set; }
-        public long TrainingDataSize { get; set; }
-        public long ModelSize { get; set; }
+        public long? TrainingDataSize { get; set; }
+        public long? ModelSize { get; set; }
         public string? Notes { get; set; }
     }
 }
